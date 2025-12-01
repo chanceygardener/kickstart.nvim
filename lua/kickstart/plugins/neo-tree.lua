@@ -15,6 +15,19 @@ return {
   },
   opts = {
     filesystem = {
+      -- Enable file system watcher to auto-refresh on external changes
+      use_libuv_file_watcher = true,
+      follow_current_file = {
+        enabled = true,
+      },
+      filtered_items = {
+        visible = true, -- Show hidden files by default
+        hide_dotfiles = false,
+        hide_gitignored = false,
+        hide_hidden = false, -- Only works on Windows
+        hide_by_name = {},
+        never_show = {}, -- No files are ever hidden
+      },
       window = {
         mappings = {
           ['\\'] = 'close_window',
