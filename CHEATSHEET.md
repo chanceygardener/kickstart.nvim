@@ -150,6 +150,17 @@
 | `Space ca` | Code action |
 | `Space f` | Format buffer |
 
+## Merge Conflicts (unclash.nvim)
+
+| Keybinding | Action |
+|------------|--------|
+| `]x` | Jump to next merge conflict |
+| `[x` | Jump to previous merge conflict |
+| `Space gco` | Accept current (ours) |
+| `Space gci` | Accept incoming (theirs) |
+| `Space gcb` | Accept both |
+| `Space gcm` | Open 3-way merge editor |
+
 ## Quick Tips
 
 - The leader key is `Space`
