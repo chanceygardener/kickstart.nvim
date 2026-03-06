@@ -161,6 +161,19 @@
 | `Space gcb` | Accept both |
 | `Space gcm` | Open 3-way merge editor |
 
+## Claude Code (claude-code.nvim)
+
+| Keybinding | Action |
+|------------|--------|
+| `Ctrl+,` | Toggle Claude Code window (normal/terminal) |
+| `Space ac` | Toggle Claude Code window (alt) |
+| `Ctrl+h/j/k/l` | Navigate between windows (in terminal) |
+| `Ctrl+f` | Page down in Claude terminal |
+| `Ctrl+b` | Page up in Claude terminal |
+| `:ClaudeCode` | Toggle Claude Code terminal |
+| `:ClaudeCodeContinue` | Resume most recent conversation |
+| `:ClaudeCodeResume` | Show conversation picker |
+
 ## Quick Tips
 
 - The leader key is `Space`
