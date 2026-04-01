@@ -14,15 +14,20 @@ A starting point for Neovim that is:
 
 ### Install Neovim
 
-Kickstart.nvim targets *only* the latest
-['stable'](https://github.com/neovim/neovim/releases/tag/stable) and latest
-['nightly'](https://github.com/neovim/neovim/releases/tag/nightly) of Neovim.
-If you are experiencing issues, please make sure you have the latest versions.
+This configuration expects **Neovim 0.12.0 or later** (latest
+['stable'](https://github.com/neovim/neovim/releases/tag/stable) or
+['nightly'](https://github.com/neovim/neovim/releases/tag/nightly)), which is
+required by [nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter)
+on its default `main` branch. If you are experiencing issues, upgrade Neovim
+first.
 
 ### Install External Dependencies
 
 External Requirements:
-- Basic utils: `git`, `make`, `unzip`, C Compiler (`gcc`)
+- Basic utils: `git`, `make`, `unzip`, `tar`, `curl`, C Compiler (`gcc`)
+- [`tree-sitter` CLI](https://github.com/tree-sitter/tree-sitter/blob/master/crates/cli/README.md)
+  **0.26.1 or later** from your OS package manager (not via `npm`), required to
+  compile parsers for nvim-treesitter
 - [ripgrep](https://github.com/BurntSushi/ripgrep#installation)
 - Clipboard tool (xclip/xsel/win32yank or other depending on the platform)
 - A [Nerd Font](https://www.nerdfonts.com/): optional, provides various icons
@@ -60,9 +65,10 @@ fork to your machine using one of the commands below, depending on your OS.
 > Your fork's URL will be something like this:
 > `https://github.com/<your_github_username>/kickstart.nvim.git`
 
-You likely want to remove `lazy-lock.json` from your fork's `.gitignore` file
-too - it's ignored in the kickstart repo to make maintenance easier, but it's
-[recommended to track it in version control](https://lazy.folke.io/usage/lockfile).
+This fork **tracks `lazy-lock.json` in git** so every machine installs the same
+plugin commits. If you merge upstream kickstart, you may need to resolve
+`.gitignore` vs lockfile the same way — lazy.nvim still
+[recommends a lockfile in version control](https://lazy.folke.io/usage/lockfile).
 
 #### Clone kickstart.nvim
 
