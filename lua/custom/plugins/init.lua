@@ -28,4 +28,46 @@ return {
       require('claude-code').setup()
     end,
   },
+  {
+    'MagicDuck/grug-far.nvim',
+    dependencies = {
+      { 'nvim-tree/nvim-web-devicons', enabled = vim.g.have_nerd_font },
+    },
+    opts = {},
+    cmd = { 'GrugFar', 'GrugFarWithin' },
+    keys = {
+      {
+        '<leader>sR',
+        function()
+          require('grug-far').open()
+        end,
+        mode = 'n',
+        desc = '[S]earch [R]eplace (grug-far)',
+      },
+      {
+        '<leader>sR',
+        function()
+          require('grug-far').with_visual_selection()
+        end,
+        mode = 'x',
+        desc = '[S]earch [R]eplace (grug-far, selection)',
+      },
+      {
+        '<leader>sv',
+        function()
+          require('grug-far').open { visualSelectionUsage = 'operate-within-range' }
+        end,
+        mode = 'x',
+        desc = '[S]earch replace in [V]isual range',
+      },
+    },
+  },
+  {
+    'klepp0/nvim-baml-syntax',
+    dependencies = { 'nvim-treesitter/nvim-treesitter' },
+    ft = 'baml',
+    config = function()
+      require('baml_syntax').setup()
+    end,
+  },
 }

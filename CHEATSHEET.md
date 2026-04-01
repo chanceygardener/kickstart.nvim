@@ -127,6 +127,44 @@
 | `:%s/old/new/g` | Replace all occurrences in file |
 | `:%s/old/new/gc` | Replace all with confirmation |
 
+## Find and Replace (grug-far.nvim)
+
+[grug-far.nvim](https://github.com/MagicDuck/grug-far.nvim): project-wide (and multi-file) find/replace using **ripgrep** (`rg`), with a dedicated buffer for editing the search, replacement, paths, and flags. See `:h grug-far` for full options.
+
+### Opening grug-far (global keymaps)
+
+Leader is `Space`. These load the plugin when used.
+
+| Keybinding | Mode | Action |
+|------------|------|--------|
+| `Space s R` | Normal | Open grug-far for find/replace |
+| `Space s R` | Visual | Open grug-far with the selected text as the search string |
+| `Space s v` | Visual | Find/replace **only within** the current visual selection (line/character range) |
+
+### Commands
+
+| Command | Action |
+|---------|--------|
+| `:GrugFar` | Open a new grug-far buffer (supports modifiers like `:botright GrugFar`; in visual mode, pre-fills search from the selection) |
+| `:GrugFarWithin` | Like `:GrugFar`, but limit search/replace to the visual selection range |
+
+### Inside the grug-far buffer
+
+Buffer-local maps use **`<localleader>`**, which is also `Space` in this config (same as the main leader). Defaults include:
+
+| Keybinding | Action (typical default) |
+|------------|--------------------------|
+| `Space r` | Run **Replace** (apply replacement) |
+| `Space c` | **Close** the grug-far buffer (confirms if a job is running) |
+| `Enter` | **Goto** file/location for the result under the cursor (normal mode) |
+
+The buffer shows inline help for actions and inputs. Use `:h grug-far` for engines (`rg` vs ast-grep), sync, history, quickfix, and more.
+
+### Requirements and health
+
+- Needs **ripgrep** (`rg`) on your `PATH` (already expected by kickstart).
+- If something fails, run `:checkhealth grug-far`.
+
 ## File Operations
 
 | Keybinding | Action |
