@@ -789,9 +789,7 @@ require('lazy').setup({
         -- Bash / shell scripts
         bashls = {},
 
-        -- SQL: completions + hover. Full schema-aware completions require a per-project
-        -- .sqls.yml config pointing at your database; basic parsing works without it.
-        sqls = {},
+
       }
 
       -- Ensure the servers and tools above are installed
@@ -819,7 +817,6 @@ require('lazy').setup({
         'bash-language-server',      -- bashls
         'hadolint',                  -- Dockerfile linter (nvim-lint)
         'yamllint',                  -- YAML linter (nvim-lint)
-        'sqls',                      -- SQL language server
         'sqlfluff',                  -- SQL linter + formatter (nvim-lint + conform)
         'checkmake',                 -- Makefile linter (nvim-lint)
       })
@@ -1138,16 +1135,23 @@ require('lazy').setup({
             local ft = vim.bo.filetype
             if ft == 'ruby' then
               -- Treesitter + legacy vim syntax (Ruby still relies on regex in places); skip TS indent.
-              vim.treesitter.start()
-              vim.bo.syntax = 'ON'
-              if vim.fn.exists('*GetRubyIndent') == 1 then
-                vim.bo.indentexpr = 'GetRubyIndent()'
+              -- Guard with pcall: parser may not be compiled yet on first launch.
+              local ok = pcall(vim.treesitter.start)
+              if ok then
+                vim.bo.syntax = 'ON'
+                if vim.fn.exists('*GetRubyIndent') == 1 then
+                  vim.bo.indentexpr = 'GetRubyIndent()'
+                end
               end
             else
-              vim.treesitter.start()
-              vim.wo.foldexpr = 'v:lua.vim.treesitter.foldexpr()'
-              vim.wo.foldmethod = 'expr'
-              vim.bo.indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+              -- Guard with pcall: parser may not be compiled yet on first launch.
+              -- Folding/indent are only set when the parser actually loaded successfully.
+              local ok = pcall(vim.treesitter.start)
+              if ok then
+                vim.wo.foldexpr = 'v:lua.vim.treesitter.foldexpr()'
+                vim.wo.foldmethod = 'expr'
+                vim.bo.indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+              end
             end
           end)
         end,

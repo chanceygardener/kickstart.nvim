@@ -221,7 +221,7 @@ The buffer shows inline help for actions and inputs. Use `:h grug-far` for engin
 | JSON / GeoJSON | `jsonls` | GeoJSON schema auto-validates `*.geojson` |
 | TypeScript / JS | `ts_ls` | AWS CDK (TypeScript), general TS/JS |
 | Bash / shell | `bashls` | shell scripts |
-| SQL | `sqls` | completions + hover; add `.sqls.yml` per project for schema-aware completions |
+| SQL | — | no LSP; linting + formatting via sqlfluff, syntax via treesitter |
 | Lua | `lua_ls` | Neovim config |
 | Makefile | — | no LSP; linting via checkmake, syntax via treesitter |
 
