@@ -212,12 +212,45 @@ The buffer shows inline help for actions and inputs. Use `:h grug-far` for engin
 | `:ClaudeCodeContinue` | Resume most recent conversation |
 | `:ClaudeCodeResume` | Show conversation picker |
 
+## LSP Coverage by Language
+
+| Language / Format | Server | Notes |
+|-------------------|--------|-------|
+| Python | `pylsp` | black formatter, jedi fuzzy completion, isort |
+| YAML | `yamlls` | schema validation: docker-compose, GitHub Actions, k8s |
+| JSON / GeoJSON | `jsonls` | GeoJSON schema auto-validates `*.geojson` |
+| TypeScript / JS | `ts_ls` | AWS CDK (TypeScript), general TS/JS |
+| Bash / shell | `bashls` | shell scripts |
+| SQL | `sqls` | completions + hover; add `.sqls.yml` per project for schema-aware completions |
+| Lua | `lua_ls` | Neovim config |
+| Makefile | — | no LSP; linting via checkmake, syntax via treesitter |
+
+All servers are installed automatically via Mason on first launch.
+
+## Linting (nvim-lint)
+
+Linters run automatically on `BufWritePost` and `InsertLeave`. Diagnostics appear inline alongside LSP diagnostics.
+
+| Filetype | Linter | Install |
+|----------|--------|---------|
+| YAML | `yamllint` | Mason (auto) |
+| Dockerfile | `hadolint` | Mason (auto) |
+| SQL | `sqlfluff` | Mason (auto); set dialect in `.sqlfluff`: `[sqlfluff]\ndialect = postgres` |
+| Makefile | `checkmake` | Mason (auto) |
+| Markdown | `markdownlint` | Mason (manual: `:MasonInstall markdownlint`) |
+
 ## Python (pylsp + conform.nvim)
 
 pylsp is configured with jedi fuzzy completion and black as the LSP formatter. conform.nvim runs
-`isort` then `black` on every save and via `<leader>f`. Install the tools the first time by
-running `:Mason` and waiting for `python-lsp-server`, `python-lsp-black`, `python-lsp-isort`,
-`black`, and `isort` to finish installing.
+`isort` then `black` on every save and via `<leader>f`.
+
+**JSON** is formatted by `jq` (install separately: `brew install jq`). **YAML** formatting uses
+the `yamlls` LSP fallback — no extra tool needed.
+
+**Jinja2** (`.jinja2` / `.j2`): treesitter syntax highlighting only — no LSP. Files are detected
+as `jinja` filetype automatically.
+
+Run `:Mason` on first launch and wait for all tools to install before opening language files.
 
 | Keybinding / Command | Action |
 |----------------------|--------|

@@ -90,6 +90,14 @@ P.S. You can delete this when you're done too. It's your config now! :)
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
+-- Register Jinja2 file extensions so treesitter highlighting and LSP can activate.
+vim.filetype.add {
+  extension = {
+    jinja2 = 'jinja',
+    j2     = 'jinja',
+  },
+}
+
 -- Set to true if you have a Nerd Font installed and selected in the terminal
 vim.g.have_nerd_font = false
 
@@ -734,6 +742,55 @@ require('lazy').setup({
             },
           },
         },
+
+        -- YAML: docker-compose, GitHub Actions, Kubernetes, general YAML
+        yamlls = {
+          settings = {
+            yaml = {
+              schemaStore = {
+                -- Let yaml-language-server fetch schemas from SchemaStore automatically.
+                enable = true,
+                url = 'https://www.schemastore.org/json/',
+              },
+              schemas = {
+                ['https://json.schemastore.org/github-workflow.json'] = '/.github/workflows/*.{yml,yaml}',
+                ['https://raw.githubusercontent.com/compose-spec/compose-spec/master/schema/compose-spec.json'] = '/docker-compose*.{yml,yaml}',
+                kubernetes = '/*.k8s.yaml',
+              },
+              format   = { enable = true },
+              completion = true,
+              hover    = true,
+              validate = true,
+            },
+          },
+        },
+
+        -- JSON + GeoJSON schema validation
+        jsonls = {
+          settings = {
+            json = {
+              schemas = {
+                {
+                  fileMatch = { '*.geojson' },
+                  url = 'https://json.schemastore.org/geojson.json',
+                  name = 'GeoJSON',
+                },
+              },
+              format   = { enable = true },
+              validate = { enable = true },
+            },
+          },
+        },
+
+        -- TypeScript / JavaScript — covers AWS CDK (TypeScript) projects
+        ts_ls = {},
+
+        -- Bash / shell scripts
+        bashls = {},
+
+        -- SQL: completions + hover. Full schema-aware completions require a per-project
+        -- .sqls.yml config pointing at your database; basic parsing works without it.
+        sqls = {},
       }
 
       -- Ensure the servers and tools above are installed
@@ -751,12 +808,21 @@ require('lazy').setup({
       -- for you, so that they are available from within Neovim.
       local ensure_installed = vim.tbl_keys(servers or {})
       vim.list_extend(ensure_installed, {
-        'stylua',             -- Lua formatter
-        'python-lsp-server',  -- pylsp core language server
-        'python-lsp-black',   -- pylsp plugin: black formatter
-        'python-lsp-isort',   -- pylsp plugin: isort import sorter (pyls_isort)
-        'black',              -- used directly by conform.nvim
-        'isort',              -- used directly by conform.nvim
+        'stylua',                    -- Lua formatter
+        'python-lsp-server',         -- pylsp core language server
+        'python-lsp-black',          -- pylsp plugin: black formatter
+        'python-lsp-isort',          -- pylsp plugin: isort import sorter (pyls_isort)
+        'black',                     -- used directly by conform.nvim
+        'isort',                     -- used directly by conform.nvim
+        'yaml-language-server',      -- yamlls
+        'json-lsp',                  -- jsonls (vscode-langservers-extracted)
+        'typescript-language-server', -- ts_ls
+        'bash-language-server',      -- bashls
+        'hadolint',                  -- Dockerfile linter (nvim-lint)
+        'yamllint',                  -- YAML linter (nvim-lint)
+        'sqls',                      -- SQL language server
+        'sqlfluff',                  -- SQL linter + formatter (nvim-lint + conform)
+        'checkmake',                 -- Makefile linter (nvim-lint)
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
@@ -815,6 +881,12 @@ require('lazy').setup({
         lua    = { 'stylua' },
         -- isort runs first (import reordering), then black (style formatting)
         python = { 'isort', 'black' },
+        -- jq must be installed separately: brew install jq
+        json   = { 'jq' },
+        -- sqlfluff fix rewrites SQL in-place; set dialect in a per-project .sqlfluff file
+        -- e.g.: [sqlfluff]\ndialect = postgres
+        sql    = { 'sqlfluff' },
+        -- YAML is formatted via yamlls LSP fallback (lsp_format = 'fallback' above)
         -- You can use 'stop_after_first' to run the first available formatter from the list
         -- javascript = { "prettierd", "prettier", stop_after_first = true },
       },
@@ -1014,16 +1086,24 @@ require('lazy').setup({
         'bash',
         'c',
         'diff',
+        'dockerfile',
         'html',
+        'javascript',
+        'jinja',
+        'json',
         'lua',
         'luadoc',
+        'make',
         'markdown',
         'markdown_inline',
         'python',
         'query',
+        'sql',
+        'typescript',
         'vim',
         'vimdoc',
         'ruby',
+        'yaml',
       }
       require('nvim-treesitter').install(parsers, { summary = true }):wait(300000)
 
@@ -1036,15 +1116,23 @@ require('lazy').setup({
           'zsh',
           'c',
           'diff',
+          'dockerfile',
           'html',
+          'javascript',
+          'jinja',
+          'json',
           'lua',
           'luadoc',
+          'make',
           'markdown',
           'python',
           'query',
+          'sql',
+          'typescript',
           'vim',
           'help',
           'ruby',
+          'yaml',
         },
         callback = function(ev)
           vim.api.nvim_buf_call(ev.buf, function()
@@ -1084,7 +1172,7 @@ require('lazy').setup({
   --
   -- require 'kickstart.plugins.debug',
   -- require 'kickstart.plugins.indent_line',
-  -- require 'kickstart.plugins.lint',
+  require 'kickstart.plugins.lint',
   -- require 'kickstart.plugins.autopairs',
   require 'kickstart.plugins.neo-tree',
   -- require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
