@@ -1012,16 +1012,20 @@ require('lazy').setup({
     -- change the command in the config to whatever the name of that colorscheme is.
     --
     -- If you want to see what colorschemes are already installed, you can use `:Telescope colorscheme`.
-    'tanvirtin/monokai.nvim',
+    --
+    -- monokai-pro.nvim has full treesitter highlight group coverage, giving proper
+    -- colors to YAML keys, JSON fields, Python types, etc. Filter options:
+    --   'default' | 'machine' | 'octagon' | 'pro' | 'ristretto' | 'spectrum'
+    'loctvl842/monokai-pro.nvim',
     priority = 1000, -- Make sure to load this before all the other start plugins.
     config = function()
-      require('monokai').setup {
-        palette = require('monokai').pro, -- Use Monokai Pro palette (closest to Sublime Text)
-        italics = false, -- Disable italics
+      require('monokai-pro').setup {
+        filter = 'pro',   -- closest to VS Code Monokai Pro
+        italic_comments = false,
       }
 
       -- Load the colorscheme here.
-      vim.cmd.colorscheme 'monokai'
+      vim.cmd.colorscheme 'monokai-pro'
     end,
   },
 
