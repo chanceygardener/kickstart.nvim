@@ -726,8 +726,9 @@ require('lazy').setup({
           settings = {
             pylsp = {
               plugins = {
-                -- Formatting: black is the canonical formatter; disable competitors
-                black       = { enabled = true },
+                -- Formatting delegated entirely to conform.nvim (isort + black).
+                -- Disable all pylsp formatter plugins to avoid conflicts.
+                black       = { enabled = false },
                 autopep8    = { enabled = false },
                 yapf        = { enabled = false },
                 -- Linting
@@ -736,8 +737,8 @@ require('lazy').setup({
                 pylint      = { enabled = false },
                 -- Completion: fuzzy jedi matches
                 jedi_completion = { fuzzy = true },
-                -- Import sorting via pyls-isort pylsp plugin
-                pyls_isort  = { enabled = true },
+                -- Import sorting delegated to conform.nvim; disable pylsp plugin
+                pyls_isort  = { enabled = false },
               },
             },
           },
@@ -810,8 +811,6 @@ require('lazy').setup({
       vim.list_extend(ensure_installed, {
         'stylua',                    -- Lua formatter
         'python-lsp-server',         -- pylsp core language server
-        'python-lsp-black',          -- pylsp plugin: black formatter
-        'python-lsp-isort',          -- pylsp plugin: isort import sorter (pyls_isort)
         'black',                     -- used directly by conform.nvim
         'isort',                     -- used directly by conform.nvim
         'yaml-language-server',      -- yamlls
