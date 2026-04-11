@@ -212,6 +212,25 @@ The buffer shows inline help for actions and inputs. Use `:h grug-far` for engin
 | `:ClaudeCodeContinue` | Resume most recent conversation |
 | `:ClaudeCodeResume` | Show conversation picker |
 
+## Python (pylsp + conform.nvim)
+
+pylsp is configured with jedi fuzzy completion and black as the LSP formatter. conform.nvim runs
+`isort` then `black` on every save and via `<leader>f`. Install the tools the first time by
+running `:Mason` and waiting for `python-lsp-server`, `python-lsp-black`, `python-lsp-isort`,
+`black`, and `isort` to finish installing.
+
+| Keybinding / Command | Action |
+|----------------------|--------|
+| `<leader>f`          | Format buffer: isort → black (conform.nvim) |
+| `<leader>ca`         | Code action (pylsp) |
+| `<leader>rn`         | Rename symbol |
+| `gd`                 | Go to definition (jedi) |
+| `gr`                 | Find references |
+| `K`                  | Hover documentation |
+| `:lsp info`          | Show active LSP clients (replaces removed `:LspInfo`) |
+| `:lsp restart`       | Restart LSP server (replaces removed `:LspRestart`) |
+| `:lsp log`           | Open LSP log (replaces removed `:LspLog`) |
+
 ## Quick Tips
 
 - The leader key is `Space`
@@ -219,3 +238,4 @@ The buffer shows inline help for actions and inputs. Use `:h grug-far` for engin
 - Type `:Tutor` for an interactive Neovim tutorial
 - Type `Space sh` to search help documentation
 - Type `:checkhealth` to diagnose issues
+- Neovim 0.12 removed `:LspInfo` / `:LspRestart` / `:LspLog` — use `:lsp info` / `:lsp restart` / `:lsp log` instead

@@ -596,11 +596,7 @@ require('lazy').setup({
           ---@param bufnr? integer some lsp support methods only in specific files
           ---@return boolean
           local function client_supports_method(client, method, bufnr)
-            if vim.fn.has 'nvim-0.11' == 1 then
-              return client:supports_method(method, bufnr)
-            else
-              return client.supports_method(method, { bufnr = bufnr })
-            end
+            return client:supports_method(method, bufnr)
           end
 
           -- The following two autocommands are used to highlight references of the
@@ -717,6 +713,27 @@ require('lazy').setup({
             },
           },
         },
+
+        pylsp = {
+          settings = {
+            pylsp = {
+              plugins = {
+                -- Formatting: black is the canonical formatter; disable competitors
+                black       = { enabled = true },
+                autopep8    = { enabled = false },
+                yapf        = { enabled = false },
+                -- Linting
+                pyflakes    = { enabled = true },
+                pycodestyle = { enabled = true },
+                pylint      = { enabled = false },
+                -- Completion: fuzzy jedi matches
+                jedi_completion = { fuzzy = true },
+                -- Import sorting via pyls-isort pylsp plugin
+                pyls_isort  = { enabled = true },
+              },
+            },
+          },
+        },
       }
 
       -- Ensure the servers and tools above are installed
@@ -734,24 +751,31 @@ require('lazy').setup({
       -- for you, so that they are available from within Neovim.
       local ensure_installed = vim.tbl_keys(servers or {})
       vim.list_extend(ensure_installed, {
-        'stylua', -- Used to format Lua code
+        'stylua',             -- Lua formatter
+        'python-lsp-server',  -- pylsp core language server
+        'python-lsp-black',   -- pylsp plugin: black formatter
+        'python-lsp-isort',   -- pylsp plugin: isort import sorter (pyls_isort)
+        'black',              -- used directly by conform.nvim
+        'isort',              -- used directly by conform.nvim
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
+      -- mason-lspconfig v2 removed the `handlers` option; configure servers via vim.lsp.config
+      -- (Neovim 0.12 native API). nvim-lspconfig still provides default cmd/filetypes/
+      -- root_markers via its runtime configs, which vim.lsp.config picks up automatically.
       require('mason-lspconfig').setup {
-        ensure_installed = {}, -- explicitly set to an empty table (Kickstart populates installs via mason-tool-installer)
+        ensure_installed = {}, -- Kickstart populates installs via mason-tool-installer above
         automatic_installation = false,
-        handlers = {
-          function(server_name)
-            local server = servers[server_name] or {}
-            -- This handles overriding only values explicitly passed
-            -- by the server configuration above. Useful when disabling
-            -- certain features of an LSP (for example, turning off formatting for ts_ls)
-            server.capabilities = vim.tbl_deep_extend('force', {}, capabilities, server.capabilities or {})
-            require('lspconfig')[server_name].setup(server)
-          end,
-        },
       }
+
+      -- Broadcast cmp capabilities to every server.
+      vim.lsp.config('*', { capabilities = capabilities })
+
+      -- Apply per-server settings and enable each one.
+      for server_name, server in pairs(servers) do
+        vim.lsp.config(server_name, server)
+      end
+      vim.lsp.enable(vim.tbl_keys(servers))
     end,
   },
 
@@ -788,10 +812,9 @@ require('lazy').setup({
         }
       end,
       formatters_by_ft = {
-        lua = { 'stylua' },
-        -- Conform can also run multiple formatters sequentially
-        -- python = { "isort", "black" },
-        --
+        lua    = { 'stylua' },
+        -- isort runs first (import reordering), then black (style formatting)
+        python = { 'isort', 'black' },
         -- You can use 'stop_after_first' to run the first available formatter from the list
         -- javascript = { "prettierd", "prettier", stop_after_first = true },
       },
@@ -996,6 +1019,7 @@ require('lazy').setup({
         'luadoc',
         'markdown',
         'markdown_inline',
+        'python',
         'query',
         'vim',
         'vimdoc',
@@ -1016,6 +1040,7 @@ require('lazy').setup({
           'lua',
           'luadoc',
           'markdown',
+          'python',
           'query',
           'vim',
           'help',
