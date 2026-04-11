@@ -819,6 +819,7 @@ require('lazy').setup({
         'yamllint',                  -- YAML linter (nvim-lint)
         'sqlfluff',                  -- SQL linter + formatter (nvim-lint + conform)
         'checkmake',                 -- Makefile linter (nvim-lint)
+        'markdownlint',              -- Markdown linter (nvim-lint)
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 

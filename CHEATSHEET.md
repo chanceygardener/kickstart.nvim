@@ -237,7 +237,7 @@ Linters run automatically on `BufWritePost` and `InsertLeave`. Diagnostics appea
 | Dockerfile | `hadolint` | Mason (auto) |
 | SQL | `sqlfluff` | Mason (auto); set dialect in `.sqlfluff`: `[sqlfluff]\ndialect = postgres` |
 | Makefile | `checkmake` | Mason (auto) |
-| Markdown | `markdownlint` | Mason (manual: `:MasonInstall markdownlint`) |
+| Markdown | `markdownlint` | Mason (auto) |
 
 ## Python (pylsp + conform.nvim)
 
