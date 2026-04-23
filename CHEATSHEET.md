@@ -165,6 +165,36 @@ The buffer shows inline help for actions and inputs. Use `:h grug-far` for engin
 - Needs **ripgrep** (`rg`) on your `PATH` (already expected by kickstart).
 - If something fails, run `:checkhealth grug-far`.
 
+## Cmdline Completion (wilder.nvim)
+
+[wilder.nvim](https://github.com/gelguy/wilder.nvim) provides fuzzy-matched, scrollable
+suggestions while typing commands (`:`), forward search (`/`), and backward search (`?`).
+Suggestions appear automatically — no trigger key needed.
+
+### Navigation
+
+| Keybinding | Action |
+|------------|--------|
+| `Tab` | Next suggestion |
+| `S-Tab` (Shift+Tab) | Previous suggestion |
+| `Esc` | Dismiss suggestions / cancel cmdline |
+
+### Modes Enhanced
+
+| Mode | Trigger | Renderer | Completions |
+|------|---------|----------|-------------|
+| Command | `:` | Popupmenu (bordered, with devicons) | Commands, paths, history — fuzzy matched |
+| Search forward | `/` | Wildmenu (bottom bar) | Buffer text / history |
+| Search backward | `?` | Wildmenu (bottom bar) | Buffer text / history |
+
+### Tips
+
+- Suggestions appear automatically as you type — no extra keystroke required.
+- The popupmenu for `:` shows file-type icons (requires Nerd Font) and a scrollbar.
+- Fuzzy matching works mid-string: typing `bw` will surface `bufwipe`, etc.
+- wilder does not interfere with Telescope searches or `<leader>` keymaps.
+- Run `:checkhealth wilder` to diagnose any issues.
+
 ## File Operations
 
 | Keybinding | Action |
