@@ -208,6 +208,8 @@ vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper win
 -- Map Ctrl+z to undo (like in GUI editors)
 vim.keymap.set({ 'n', 'v' }, '<C-z>', 'u', { desc = 'Undo' })
 vim.keymap.set({ 'n', 'v' }, '<C-S-z>', '<C-r>', { desc = 'Redo' })
+vim.keymap.set('n', '<C-/>', 'gcc', { remap = true, desc = 'Toggle comment (line)' })
+vim.keymap.set('v', '<C-/>', 'gc',  { remap = true, desc = 'Toggle comment (selection)' })
 
 -- [[ Basic Autocommands ]]
 --  See `:help lua-guide-autocommands`
@@ -1050,6 +1052,8 @@ require('lazy').setup({
       -- - sd'   - [S]urround [D]elete [']quotes
       -- - sr)'  - [S]urround [R]eplace [)] [']
       require('mini.surround').setup()
+
+      require('mini.comment').setup({})
 
       -- Simple and easy statusline.
       --  You could remove this setup call if you don't like it,
