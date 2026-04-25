@@ -165,6 +165,60 @@ The buffer shows inline help for actions and inputs. Use `:h grug-far` for engin
 - Needs **ripgrep** (`rg`) on your `PATH` (already expected by kickstart).
 - If something fails, run `:checkhealth grug-far`.
 
+## Surround (mini.surround)
+
+Add, delete, and replace surrounding characters (brackets, quotes, tags, etc.) with operator-style motions.
+
+### Adding surroundings
+
+| Keybinding | Action |
+|------------|--------|
+| `sa` + motion + char | Add surrounding around motion (`saiw)` = surround inner word with parens) |
+| Visual + `sa` + char | Add surrounding around selection |
+
+### Deleting surroundings
+
+| Keybinding | Action |
+|------------|--------|
+| `sd` + char | Delete surrounding (`sd'` = delete surrounding single quotes) |
+
+### Replacing surroundings
+
+| Keybinding | Action |
+|------------|--------|
+| `sr` + old + new | Replace surrounding (`sr)'` = replace `)` with `'`) |
+
+### Finding / highlighting surroundings
+
+| Keybinding | Action |
+|------------|--------|
+| `sf` + char | Find next surrounding (move cursor to it) |
+| `sF` + char | Find previous surrounding |
+| `sh` + char | Highlight surrounding (briefly flashes it) |
+
+### Surrounding characters reference
+
+| Character | Surrounding added |
+|-----------|-------------------|
+| `)` or `(` | `(…)` |
+| `]` or `[` | `[…]` |
+| `}` or `{` | `{…}` |
+| `>` or `<` | `<…>` |
+| `'` | `'…'` |
+| `"` | `"…"` |
+| `` ` `` | `` `…` `` |
+| `t` | HTML/XML tag (`<div>…</div>`) |
+
+### Examples
+
+| Keybinding | Before → After |
+|------------|----------------|
+| `saiw)` | `hello` → `(hello)` (cursor on word) |
+| `saiw"` | `hello` → `"hello"` |
+| `sd'` | `'hello'` → `hello` |
+| `sr)"` | `(hello)` → `"hello"` |
+| `sat<div>` | `hello` → `<div>hello</div>` |
+
 ## Cmdline Completion (wilder.nvim)
 
 [wilder.nvim](https://github.com/gelguy/wilder.nvim) provides fuzzy-matched, scrollable
@@ -217,6 +271,17 @@ Suggestions appear automatically — no trigger key needed.
 | `Space rn` | Rename symbol |
 | `Space ca` | Code action |
 | `Space f` | Format buffer |
+
+## Commenting (mini.comment)
+
+| Keybinding | Mode | Action |
+|------------|------|--------|
+| `Ctrl+/` | Normal | Toggle comment on current line |
+| `Ctrl+/` | Visual | Toggle comment on selected lines |
+| `gcc` | Normal | Toggle comment on current line (vim motion) |
+| `gc` + motion | Normal | Toggle comment over motion (`gcip` = comment paragraph) |
+
+Toggle is bidirectional — comments if uncommented, uncomments if already commented. Comment syntax is detected automatically per filetype via treesitter.
 
 ## Merge Conflicts (unclash.nvim)
 
