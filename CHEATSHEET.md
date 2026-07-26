@@ -307,6 +307,68 @@ Toggle is bidirectional — comments if uncommented, uncomments if already comme
 | `:ClaudeCodeContinue` | Resume most recent conversation |
 | `:ClaudeCodeResume` | Show conversation picker |
 
+## QoL Modules (snacks.nvim)
+
+Configured additively in `lua/custom/plugins/snacks.lua` — the snacks picker
+and file explorer are **disabled** so telescope and Neo-tree keep owning those
+jobs.
+
+### Git
+
+| Keybinding | Action |
+|------------|--------|
+| `Space gg` | Open lazygit (repo root) |
+| `Space gl` | Lazygit log |
+| `Space gf` | Lazygit history for the current file |
+| `Space gb` | Git blame the current line |
+| `Space gB` | Open file/selection on the git host in a browser (also visual) |
+
+Requires `lazygit` on `PATH` (`brew install lazygit`).
+
+### Buffers, scratch and notifications
+
+| Keybinding | Action |
+|------------|--------|
+| `Space bd` | Delete current buffer, keeping the window layout intact |
+| `Space bo` | Delete all *other* buffers |
+| `Space .`  | Toggle a scratch buffer (per project + filetype, persisted) |
+| `Space S`  | Pick from existing scratch buffers |
+| `Space nh` | Show notification history |
+| `Space nd` | Dismiss all visible notifications |
+| `Space rf` | Rename the current file (updates LSP references) |
+
+### Toggles
+
+Join the existing `Space t` toggle group.
+
+| Keybinding | Action |
+|------------|--------|
+| `Space tz` | Zen mode |
+| `Space tZ` | Zoom (maximise current window) |
+| `Space tL` | Line numbers |
+| `Space tg` | Diagnostics |
+| `Space ti` | Indent guides |
+| `Space tw` | Line wrap |
+| `Space ts` | Spell check |
+| `Space tc` | Conceal level |
+
+### Reference navigation
+
+| Keybinding | Action |
+|------------|--------|
+| `]]` | Jump to next reference of the symbol under the cursor |
+| `[[` | Jump to previous reference |
+
+### Always-on behaviour (no keybinding)
+
+- **Dashboard** — start screen when opening `nvim` with no file; uses telescope
+- **Notifier** — replaces `vim.notify` popups (fidget still handles LSP progress)
+- **Indent + scope** — indent guides with the current scope highlighted
+- **Statuscolumn** — combined gutter for signs, git marks and folds
+- **Bigfile** — disables treesitter/LSP on very large files so they stay openable
+- **Quickfile** — renders the file before plugins finish loading
+- **Input** — popup for `vim.ui.input` (telescope still handles `vim.ui.select`)
+
 ## LSP Coverage by Language
 
 | Language / Format | Server | Notes |
