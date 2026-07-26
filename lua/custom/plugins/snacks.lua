@@ -1,10 +1,13 @@
 -- snacks.nvim — a collection of small QoL modules
 -- https://github.com/folke/snacks.nvim
 --
--- This config is deliberately additive: the modules that would compete with
--- plugins already in this config (picker/telescope, explorer/neo-tree,
--- terminal/claude-code.nvim) are left disabled. See the `enabled = false`
--- block below for the reasoning on each.
+-- Modules that would compete with a plugin already configured here are left
+-- disabled; see the `enabled = false` block below for the reasoning on each.
+--
+-- `picker` is the exception: it replaced telescope.nvim outright, because
+-- telescope 0.1.x drives its preview highlighting through nvim-treesitter v1's
+-- Lua API and throws on every preview against the v2 (`main`) branch this
+-- config tracks. The `<leader>s*` keymaps kept their original kickstart keys.
 
 return {
   'folke/snacks.nvim',
@@ -21,18 +24,22 @@ return {
     quickfile = { enabled = true },
 
     -- Start screen. `preset.pick` is intentionally left unset: snacks
-    -- auto-detects an installed picker, which resolves to telescope here.
+    -- auto-detects a picker, which now resolves to snacks' own.
     dashboard = {
       enabled = true,
       preset = {
-        -- The upstream default includes a "Restore Session" entry, which
-        -- requires a session manager this config doesn't have. Omitted.
         keys = {
           { icon = ' ', key = 'f', desc = 'Find File', action = ":lua Snacks.dashboard.pick('files')" },
           { icon = ' ', key = 'n', desc = 'New File', action = ':ene | startinsert' },
           { icon = ' ', key = 'g', desc = 'Find Text', action = ":lua Snacks.dashboard.pick('live_grep')" },
           { icon = ' ', key = 'r', desc = 'Recent Files', action = ":lua Snacks.dashboard.pick('oldfiles')" },
           { icon = ' ', key = 'c', desc = 'Config', action = ":lua Snacks.dashboard.pick('files', { cwd = vim.fn.stdpath('config') })" },
+          -- The action is hardcoded rather than using `section = 'session'`:
+          -- that helper picks the first session manager it recognises, and its
+          -- list has mini.nvim ahead of auto-session. mini.nvim is installed
+          -- here (for ai/surround/comment/statusline) but mini.sessions is
+          -- never set up, so the generic section resolves to a call that errors.
+          { icon = ' ', key = 's', desc = 'Restore Session', action = ':AutoSession restore' },
           { icon = '󰒲 ', key = 'L', desc = 'Lazy', action = ':Lazy', enabled = package.loaded.lazy ~= nil },
           { icon = ' ', key = 'q', desc = 'Quit', action = ':qa' },
         },
@@ -53,8 +60,14 @@ return {
     -- LSP reference highlighting, navigable with ]] and [[ (mapped below).
     words = { enabled = true },
 
-    -- Replaces `vim.ui.input` only. telescope-ui-select keeps `vim.ui.select`.
     input = { enabled = true },
+
+    -- Replaces telescope. `ui_select` routes `vim.ui.select` through the
+    -- picker, taking over what telescope-ui-select used to do.
+    picker = {
+      enabled = true,
+      ui_select = true,
+    },
 
     -- Opt-in modules used by the keymaps below.
     lazygit = { enabled = true },
@@ -68,7 +81,7 @@ return {
 
     -- Deliberately off — each would compete with a plugin already configured
     -- here, or was declined during setup.
-    picker = { enabled = false }, -- telescope.nvim owns picking
+
     explorer = { enabled = false }, -- neo-tree owns the file tree
     terminal = { enabled = false }, -- claude-code.nvim owns terminals
     scroll = { enabled = false },
@@ -82,6 +95,22 @@ return {
   -- turns this table into ~120 lines of noise. Behaviour is identical, and
   -- `<cmd>` preserves the count for the ]]/[[ motions below.
   keys = {
+    -- [S]earch — these replace the telescope keymaps that used to live in
+    -- init.lua. The key scheme is deliberately unchanged from kickstart's.
+    { '<leader>sh', '<cmd>lua Snacks.picker.help()<cr>', desc = '[S]earch [H]elp' },
+    { '<leader>sk', '<cmd>lua Snacks.picker.keymaps()<cr>', desc = '[S]earch [K]eymaps' },
+    { '<leader>sf', '<cmd>lua Snacks.picker.files()<cr>', desc = '[S]earch [F]iles' },
+    { '<leader>ss', '<cmd>lua Snacks.picker.pickers()<cr>', desc = '[S]earch [S]elect picker' },
+    { '<leader>sw', '<cmd>lua Snacks.picker.grep_word()<cr>', desc = '[S]earch current [W]ord', mode = { 'n', 'x' } },
+    { '<leader>sg', '<cmd>lua Snacks.picker.grep()<cr>', desc = '[S]earch by [G]rep' },
+    { '<leader>sd', '<cmd>lua Snacks.picker.diagnostics()<cr>', desc = '[S]earch [D]iagnostics' },
+    { '<leader>sr', '<cmd>lua Snacks.picker.resume()<cr>', desc = '[S]earch [R]esume' },
+    { '<leader>s.', '<cmd>lua Snacks.picker.recent()<cr>', desc = '[S]earch Recent Files ("." for repeat)' },
+    { '<leader>s/', '<cmd>lua Snacks.picker.grep_buffers()<cr>', desc = '[S]earch [/] in Open Files' },
+    { '<leader>sn', "<cmd>lua Snacks.picker.files({ cwd = vim.fn.stdpath('config') })<cr>", desc = '[S]earch [N]eovim files' },
+    { '<leader><leader>', '<cmd>lua Snacks.picker.buffers()<cr>', desc = '[ ] Find existing buffers' },
+    { '<leader>/', '<cmd>lua Snacks.picker.lines()<cr>', desc = '[/] Fuzzily search in current buffer' },
+
     -- [G]it
     { '<leader>gg', '<cmd>lua Snacks.lazygit()<cr>', desc = 'Lazy[g]it' },
     { '<leader>gl', '<cmd>lua Snacks.lazygit.log()<cr>', desc = 'Lazygit [l]og' },

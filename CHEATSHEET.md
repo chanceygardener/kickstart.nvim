@@ -246,7 +246,7 @@ Suggestions appear automatically — no trigger key needed.
 - Suggestions appear automatically as you type — no extra keystroke required.
 - The popupmenu for `:` shows file-type icons (requires Nerd Font) and a scrollbar.
 - Fuzzy matching works mid-string: typing `bw` will surface `bufwipe`, etc.
-- wilder does not interfere with Telescope searches or `<leader>` keymaps.
+- wilder does not interfere with picker searches or `<leader>` keymaps.
 - Run `:checkhealth wilder` to diagnose any issues.
 
 ## File Operations
@@ -260,6 +260,34 @@ Suggestions appear automatically — no trigger key needed.
 | `Space sf` | Search files |
 | `Space sg` | Search by grep |
 | `Space Space` | Find existing buffers |
+
+## Fuzzy Finding (snacks.picker)
+
+Replaced telescope.nvim. Keys are unchanged from the kickstart scheme.
+
+| Keybinding | Action |
+|------------|--------|
+| `Space sf` | Search [F]iles |
+| `Space sg` | Search by [G]rep (whole project) |
+| `Space sw` | Search current [W]ord (also works on a visual selection) |
+| `Space s/` | Search in open files only |
+| `Space sh` | Search [H]elp |
+| `Space sk` | Search [K]eymaps |
+| `Space sd` | Search [D]iagnostics |
+| `Space sn` | Search [N]eovim config files |
+| `Space sr` | [R]esume the last picker |
+| `Space s.` | Recent files |
+| `Space ss` | [S]elect a picker (list of all pickers) |
+| `Space Space` | Find existing buffers |
+| `Space /` | Fuzzily search lines in the current buffer |
+
+LSP navigation (`gd`, `gr`, `gI`, `Space D`, `Space ds`, `Space ws`) also runs
+through the picker. `vim.ui.select` prompts use it too.
+
+**Grep needs ripgrep.** `Space sg`, `Space sw` and `Space s/` return nothing
+without it — install with `brew install ripgrep`. Adding `fd`
+(`brew install fd`) also makes `Space sf` faster; without either, file search
+falls back to `find`, which works but is slower.
 
 ## LSP (Code Intelligence)
 
@@ -310,8 +338,8 @@ Toggle is bidirectional — comments if uncommented, uncomments if already comme
 ## QoL Modules (snacks.nvim)
 
 Configured additively in `lua/custom/plugins/snacks.lua` — the snacks picker
-and file explorer are **disabled** so telescope and Neo-tree keep owning those
-jobs.
+explorer is **disabled** so Neo-tree keeps owning the file tree. The picker
+**replaced telescope.nvim**.
 
 ### Git
 
@@ -361,13 +389,43 @@ Join the existing `Space t` toggle group.
 
 ### Always-on behaviour (no keybinding)
 
-- **Dashboard** — start screen when opening `nvim` with no file; uses telescope
+- **Dashboard** — start screen when opening `nvim` with no file
 - **Notifier** — replaces `vim.notify` popups (fidget still handles LSP progress)
 - **Indent + scope** — indent guides with the current scope highlighted
 - **Statuscolumn** — combined gutter for signs, git marks and folds
 - **Bigfile** — disables treesitter/LSP on very large files so they stay openable
 - **Quickfile** — renders the file before plugins finish loading
-- **Input** — popup for `vim.ui.input` (telescope still handles `vim.ui.select`)
+- **Input/Select** — popups for `vim.ui.input` and `vim.ui.select`
+
+## Sessions (auto-session)
+
+One session per project directory, holding your open buffers, window layout
+and cwd. Running `nvim` with no arguments in a directory you've worked in
+before restores it automatically; a directory with no session shows the
+dashboard instead, where `s` restores on demand.
+
+Sessions are stored in `~/.local/share/nvim/sessions/`.
+
+| Keybinding / Command | Action |
+|----------------------|--------|
+| `Space ps` | Save the session for the current directory |
+| `Space pr` | Restore the session for the current directory |
+| `Space pd` | Delete the session for the current directory |
+| `Space pf` | Find/search sessions (picker) |
+| `Space pt` | Toggle auto-saving on/off for this session |
+| `:AutoSession purgeOrphaned` | Remove sessions for deleted directories |
+
+### Things worth knowing
+
+- **No session is saved** in `~`, `~/Downloads`, `~/Desktop`, `/tmp` or `/`.
+- **Opening a single file** (`nvim foo.txt`) disables auto-save for that run,
+  so a quick edit can't overwrite the session for that directory.
+- **Neo-tree is closed before saving.** A restored sidebar comes back broken,
+  so reopen it with `\` after a restore.
+- **Terminals are not restored** — `sessionoptions` deliberately omits
+  `terminal` so Claude Code terminals don't come back dead.
+- The dashboard is never saved as a session, so quitting from the start screen
+  won't leave you with an empty session on the next visit.
 
 ## CSV / TSV Files (csvview.nvim)
 
@@ -463,3 +521,7 @@ Run `:Mason` on first launch and wait for all tools to install before opening la
 - Type `Space sh` to search help documentation
 - Type `:checkhealth` to diagnose issues
 - Neovim 0.12 removed `:LspInfo` / `:LspRestart` / `:LspLog` — use `:lsp info` / `:lsp restart` / `:lsp log` instead
+- Fuzzy finding is `snacks.picker`, not telescope. Telescope 0.1.x drives its
+  preview highlighting through nvim-treesitter v1's Lua API, which v2 (`main`,
+  used here) removed, so every preview threw an error.
+- Install `ripgrep` for grep pickers to return results (`brew install ripgrep`).
