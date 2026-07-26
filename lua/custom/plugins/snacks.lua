@@ -160,5 +160,35 @@ return {
     Snacks.toggle.option('wrap', { name = 'Wrap' }):map '<leader>tw'
     Snacks.toggle.option('spell', { name = 'Spelling' }):map '<leader>ts'
     Snacks.toggle.option('conceallevel', { off = 0, on = vim.o.conceallevel > 0 and vim.o.conceallevel or 2 }):map '<leader>tc'
+
+    -- Hand a half-typed `:e some/path` over to the picker, seeded with what
+    -- you've typed so far. Neovim's own cmdline completion expands one path
+    -- segment at a time, so `lua/sna` never resolves to
+    -- `lua/custom/plugins/snacks.lua`; the picker's matcher does, because it
+    -- matches as a subsequence over the whole relative path.
+    --
+    -- This shadows `cedit` (<C-f> opens the cmdline window by default). `q:`
+    -- still opens that window from normal mode, which is the usual route.
+    vim.keymap.set('c', '<C-f>', function()
+      -- Only take over `:` cmdlines; `/` and `?` keep the default behaviour.
+      if vim.fn.getcmdtype() ~= ':' then
+        return '<C-f>'
+      end
+
+      -- Drop the command name, then take the last argument as the path
+      -- fragment, so multi-argument commands (`:Neotree reveal x/y`) seed on
+      -- `x/y` rather than the whole tail. The command itself is discarded, so
+      -- `:vs foo` opens in the current window rather than a split — pick the
+      -- file, then move it if needed.
+      local args = vim.fn.getcmdline():match '^%s*%S+%s+(.*)$' or ''
+      local pattern = args:match '(%S+)%s*$' or ''
+
+      -- Deferred so the picker opens after the cmdline has been dismissed.
+      vim.schedule(function()
+        Snacks.picker.files { pattern = pattern }
+      end)
+
+      return '<C-c>'
+    end, { expr = true, desc = 'Hand cmdline path to picker' })
   end,
 }

@@ -284,6 +284,49 @@ Replaced telescope.nvim. Keys are unchanged from the kickstart scheme.
 LSP navigation (`gd`, `gr`, `gI`, `Space D`, `Space ds`, `Space ws`) also runs
 through the picker. `vim.ui.select` prompts use it too.
 
+## Deep Path Completion (`:E`)
+
+Neovim's built-in `:e` completion expands **one path segment at a time**, so
+`lua/sna` never resolves to `lua/custom/plugins/snacks.lua`. Use **`:E`**
+instead — same as `:edit`, but its `Tab` completion matches what you type as a
+subsequence across every path under the cwd. Results appear in the usual
+wilder popup; no picker window opens.
+
+| You type | `Tab` resolves to |
+|----------|-------------------|
+| `:E lua/snacks` | `lua/custom/plugins/snacks.lua` |
+| `:E cust/auto` | `lua/custom/plugins/auto-session.lua` |
+| `:E kick/wild` | `lua/kickstart/plugins/wilder.lua` |
+
+`:E` also accepts `!` (`:E! file`) and, with no argument, reloads the current
+buffer — matching `:edit` in both cases.
+
+Implemented in `lua/custom/fuzzy_edit.lua`.
+
+### Notes
+
+- Short fragments match loosely (`lua/sna` returns ~11 hits, best first); a few
+  more characters narrow it.
+- The file list is cached per directory for 5s and rebuilt on `:cd`, so
+  completion stays responsive — a 8,500-file tree scans in ~35ms and matches
+  in ~3ms.
+- `.git`, `node_modules`, `.venv`, `__pycache__`, `target`, `dist`, `build`
+  and similar are not scanned.
+- To make plain `:e` use it, add `vim.cmd 'cnoreabbrev e E'`. Left off by
+  default because it shadows `:e`'s other forms (`:e #`, `:e +42 file`,
+  netrw URLs).
+
+### Alternative: hand a half-typed path to the picker
+
+While the `:` prompt is **still open** (before pressing Enter), `Ctrl+f` hands
+what you've typed to the picker, seeded as a filter.
+
+- Only in command-line mode. In normal mode `Ctrl+f` is still page-down.
+- Takes the **last** argument, dropping the command, so `:vs foo` + `Ctrl+f`
+  opens in the current window rather than a split.
+- `/` and `?` searches keep `Ctrl+f`'s default behaviour.
+- Shadows `cedit` (cmdline window); use `q:` from normal mode for that.
+
 **Grep needs ripgrep.** `Space sg`, `Space sw` and `Space s/` return nothing
 without it — install with `brew install ripgrep`. Adding `fd`
 (`brew install fd`) also makes `Space sf` faster; without either, file search

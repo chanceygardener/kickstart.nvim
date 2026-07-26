@@ -177,6 +177,12 @@ vim.opt.autoread = true
 -- omitted so restoring a session doesn't resurrect dead Claude Code terminals.
 vim.o.sessionoptions = 'blank,buffers,curdir,folds,help,tabpages,winsize,winpos,localoptions'
 
+-- `:E` — like `:edit`, but its completion matches the typed text as a
+-- subsequence over every path under the cwd, so `:E lua/sna<Tab>` resolves
+-- `lua/custom/plugins/snacks.lua`. Built-in `:e` completion only ever expands
+-- one path segment at a time.
+require('custom.fuzzy_edit').setup()
+
 -- [[ Basic Keymaps ]]
 --  See `:help vim.keymap.set()`
 
