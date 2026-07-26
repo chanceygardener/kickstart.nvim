@@ -369,6 +369,40 @@ Join the existing `Space t` toggle group.
 - **Quickfile** — renders the file before plugins finish loading
 - **Input** — popup for `vim.ui.input` (telescope still handles `vim.ui.select`)
 
+## CSV / TSV Files (csvview.nvim)
+
+`.csv` and `.tsv` files are aligned into columns automatically on open, using
+`border` display mode — columns are separated by a vertical rule and the header
+row sticks to the top while you scroll. Lines starting with `#` or `//` are
+treated as comments rather than data.
+
+| Keybinding / Command | Action |
+|----------------------|--------|
+| `Space tv`        | Toggle CSV view on/off |
+| `:CsvViewEnable`  | Enable alignment for the current buffer |
+| `:CsvViewDisable` | Disable alignment (back to raw text) |
+| `:CsvViewToggle`  | Toggle alignment |
+| `:CsvViewInfo`    | Show row/column statistics for the buffer |
+
+### Inside an aligned CSV buffer
+
+These are buffer-local — they only apply while CSV view is active, and do not
+affect `Tab` or `Enter` anywhere else.
+
+| Keybinding | Action |
+|------------|--------|
+| `Tab`       | Jump to end of next field |
+| `Shift+Tab` | Jump to end of previous field |
+| `Enter`     | Jump to next row (same column) |
+| `Shift+Enter` | Jump to previous row (same column) |
+| `if`        | Text object: inner field (e.g. `cif` to change a cell) |
+| `af`        | Text object: outer field, including the delimiter |
+
+For delimited files that aren't detected as csv/tsv — pipe- or
+semicolon-separated exports, some log formats — open the file and run
+`:CsvViewEnable`. The delimiter is guessed from `,`, tab, `;`, `|`, `:`
+and space.
+
 ## LSP Coverage by Language
 
 | Language / Format | Server | Notes |
