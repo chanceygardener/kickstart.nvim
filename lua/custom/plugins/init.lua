@@ -20,15 +20,6 @@ return {
     },
   },
   {
-    'greggh/claude-code.nvim',
-    dependencies = {
-      'nvim-lua/plenary.nvim',
-    },
-    config = function()
-      require('claude-code').setup()
-    end,
-  },
-  {
     'MagicDuck/grug-far.nvim',
     dependencies = {
       { 'nvim-tree/nvim-web-devicons', enabled = vim.g.have_nerd_font },

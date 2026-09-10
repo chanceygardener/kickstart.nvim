@@ -1,0 +1,261 @@
+--- Review base resolution for change-set navigation.
+---
+--- Every diff entry point needs an answer to one question: *review against what?*
+--- Most tooling assumes `main`, which is wrong here — work happens against release
+--- candidates, feature branches, and the parent branch of a stacked PR. Guessing
+--- `main` silently diffs against the wrong tree, which is the failure mode that
+--- wastes the most time, so this module resolves a base explicitly, tells you what
+--- it picked, and lets you override it.
+---
+--- Resolution order:
+---   1. A base you set for this branch, via `set_base` or `pick_base`.
+---   2. `gh pr view` — GitHub knows the real parent of a stacked PR.
+---   3. The remote's default branch, from `origin/HEAD`. Never a hardcoded `main`.
+---
+--- Whatever name comes back is remote-resolved: `origin/<name>` if that ref exists,
+--- otherwise the bare local ref, so branches that were never pushed still work.
+
+local M = {}
+
+--- Resolved bases, keyed by `<git root>\0<branch>`. Keying on the branch as well as
+--- the repo means checking out a different branch re-resolves rather than silently
+--- reusing the previous branch's base — which also makes a `DirChanged` autocmd
+--- unnecessary, since a stale key can never be read.
+local bases = {}
+
+--- Run git, returning trimmed stdout, or nil if it failed or produced nothing.
+--- Callers treat nil as "unknown" and fall through to the next resolution tier.
+---@param args string[]
+---@return string|nil
+local function git(args)
+  local cmd = { 'git' }
+  vim.list_extend(cmd, args)
+
+  local result = vim.system(cmd, { text = true }):wait()
+  if result.code ~= 0 then
+    return nil
+  end
+
+  local out = vim.trim(result.stdout or '')
+  return out ~= '' and out or nil
+end
+
+---@return string|nil
+local function git_root()
+  return git { 'rev-parse', '--show-toplevel' }
+end
+
+---@return string|nil
+local function current_branch()
+  return git { 'rev-parse', '--abbrev-ref', 'HEAD' }
+end
+
+---@return string|nil
+local function cache_key()
+  local root = git_root()
+  if not root then
+    return nil
+  end
+  return root .. '\0' .. (current_branch() or '?')
+end
+
+--- Turn a branch name into a rev that actually exists, preferring the remote copy.
+--- `--verify --quiet` exits non-zero silently when the ref is missing, so this is
+--- just two existence probes.
+---@param name string
+---@return string|nil
+local function remote_resolve(name)
+  -- `git branch --all` reports remote branches as `remotes/origin/foo`, which is a
+  -- valid rev but reads badly in a Diffview title.
+  name = name:gsub('^remotes/', '')
+
+  if name:match '^origin/' then
+    return git { 'rev-parse', '--verify', '--quiet', name } and name or nil
+  end
+
+  if git { 'rev-parse', '--verify', '--quiet', 'origin/' .. name } then
+    return 'origin/' .. name
+  end
+  if git { 'rev-parse', '--verify', '--quiet', name } then
+    return name
+  end
+
+  return nil
+end
+
+--- The base branch of the PR for the current branch, per GitHub. This is the tier
+--- that makes stacked PRs work: the parent branch is whatever was opened against,
+--- not the repo default.
+---@return string|nil
+local function pr_base()
+  if vim.fn.executable 'gh' == 0 then
+    return nil
+  end
+
+  -- A non-zero exit here is the common case — no PR open for this branch — not an
+  -- error worth reporting, so this stays quiet and lets the caller fall through.
+  local result = vim.system({ 'gh', 'pr', 'view', '--json', 'baseRefName', '--jq', '.baseRefName' }, { text = true }):wait()
+  if result.code ~= 0 then
+    return nil
+  end
+
+  local out = vim.trim(result.stdout or '')
+  return out ~= '' and out or nil
+end
+
+--- The remote's default branch. `origin/HEAD` is only populated if the remote was
+--- cloned or `git remote set-head` has been run, so fall back to probing.
+---@return string|nil
+local function default_branch()
+  local head = git { 'rev-parse', '--abbrev-ref', 'origin/HEAD' }
+  if head then
+    return head
+  end
+
+  for _, name in ipairs { 'origin/main', 'origin/master' } do
+    if git { 'rev-parse', '--verify', '--quiet', name } then
+      return name
+    end
+  end
+
+  return nil
+end
+
+--- The rev to diff against, resolving and caching on first use for this branch.
+---@return string|nil
+function M.resolve_base()
+  local key = cache_key()
+  if not key then
+    vim.notify('review: not inside a git repository', vim.log.levels.WARN)
+    return nil
+  end
+
+  if bases[key] then
+    return bases[key]
+  end
+
+  local name = pr_base() or default_branch()
+  local base = name and remote_resolve(name)
+  if not base then
+    vim.notify('review: could not determine a base branch — set one with <leader>db', vim.log.levels.WARN)
+    return nil
+  end
+
+  bases[key] = base
+  vim.notify('review base: ' .. base, vim.log.levels.INFO)
+  return base
+end
+
+--- Pin a base for the current branch. Accepts anything git can resolve, including
+--- tags and RC refs, not just branch names.
+---@param rev string
+---@return string|nil resolved
+function M.set_base(rev)
+  local key = cache_key()
+  if not key then
+    vim.notify('review: not inside a git repository', vim.log.levels.WARN)
+    return nil
+  end
+
+  local base = remote_resolve(rev)
+  if not base then
+    vim.notify(('review: no such rev: %s'):format(rev), vim.log.levels.ERROR)
+    return nil
+  end
+
+  bases[key] = base
+  vim.notify('review base: ' .. base, vim.log.levels.INFO)
+  return base
+end
+
+--- Drop the pinned base so the next diff re-resolves from gh/origin.
+function M.clear_base()
+  local key = cache_key()
+  if key then
+    bases[key] = nil
+    vim.notify('review base cleared — will re-resolve', vim.log.levels.INFO)
+  end
+end
+
+--- The base for the current branch if one is already resolved, without resolving.
+--- Used for display, where triggering a `gh` call would be surprising.
+---@return string|nil
+function M.current()
+  local key = cache_key()
+  return key and bases[key] or nil
+end
+
+--- Open the change set against the resolved base. Three-dot gives merge-base
+--- semantics — changes on this branch only, not changes the base picked up since.
+--- `--imply-local` comes from the plugin's `default_args`.
+---@param pathspec? string git pathspec, e.g. `backend/` or `:!generated/`
+function M.open_diff(pathspec)
+  local base = M.resolve_base()
+  if not base then
+    return
+  end
+
+  local cmd = ('DiffviewOpen %s...HEAD'):format(base)
+  if pathspec and pathspec ~= '' then
+    cmd = cmd .. ' -- ' .. pathspec
+  end
+
+  vim.cmd(cmd)
+end
+
+--- Pick a base from the branch list, then optionally open the diff against it.
+---@param opts? { then_open?: boolean }
+function M.pick_base(opts)
+  opts = opts or {}
+
+  Snacks.picker.git_branches {
+    all = true, -- remote branches too; the base is usually not checked out locally
+    confirm = function(picker, item)
+      picker:close()
+      if not (item and item.branch) then
+        return
+      end
+      if M.set_base(item.branch) and opts.then_open then
+        M.open_diff()
+      end
+    end,
+  }
+end
+
+--- Narrow a large agent-generated change set without leaving the review workflow.
+function M.prompt_pathspec()
+  vim.ui.input({ prompt = 'Pathspec (e.g. backend/ or :!generated/): ' }, function(input)
+    if input and input ~= '' then
+      M.open_diff(input)
+    end
+  end)
+end
+
+--- The `gh dash` PR inbox in a float. This is the "which PR should I look at"
+--- step that sits before everything else in this module — deliberately a terminal
+--- rather than a plugin, since gh-dash is already the best version of that UI.
+function M.pr_inbox()
+  if vim.fn.executable 'gh' == 0 then
+    vim.notify('review: gh CLI not found', vim.log.levels.ERROR)
+    return
+  end
+
+  Snacks.terminal.open({ 'gh', 'dash' }, {
+    win = { position = 'float', width = 0.9, height = 0.9, border = 'rounded' },
+    -- Not reused across calls: gh-dash refreshes on start, and a stale dashboard
+    -- from an hour ago is worse than a one-second reload.
+    interactive = true,
+  })
+end
+
+--- Neo-tree's git_status source against the same base. A lighter-weight look at
+--- *which* files changed, when you don't want the full diff layout.
+function M.git_status_tree()
+  local base = M.resolve_base()
+  if not base then
+    return
+  end
+  vim.cmd(('Neotree left git_status git_base=%s'):format(base))
+end
+
+return M

@@ -365,18 +365,35 @@ Toggle is bidirectional — comments if uncommented, uncomments if already comme
 | `Space gcb` | Accept both |
 | `Space gcm` | Open 3-way merge editor |
 
-## Claude Code (claude-code.nvim)
+## Claude Code (claudecode.nvim)
+
+Not just a terminal in a split. This runs a WebSocket server speaking Claude Code's
+IDE protocol — the same one the VS Code extension uses — so the agent can see the
+current file, your selection, the cursor position and diagnostics, and can open
+files in this Neovim instance. Ask it to investigate something and it navigates you
+to the code rather than printing a path you have to go find.
 
 | Keybinding | Action |
 |------------|--------|
-| `Ctrl+,` | Toggle Claude Code window (normal/terminal) |
-| `Space ac` | Toggle Claude Code window (alt) |
-| `Ctrl+h/j/k/l` | Navigate between windows (in terminal) |
-| `Ctrl+f` | Page down in Claude terminal |
-| `Ctrl+b` | Page up in Claude terminal |
-| `:ClaudeCode` | Toggle Claude Code terminal |
-| `:ClaudeCodeContinue` | Resume most recent conversation |
-| `:ClaudeCodeResume` | Show conversation picker |
+| `Ctrl+,` | Toggle Claude Code (normal and terminal mode) |
+| `Space ac` | Toggle Claude Code |
+| `Space af` | Focus the Claude window |
+| `Space ar` | Resume a previous session (picker) |
+| `Space aC` | Continue the most recent conversation |
+| `Space am` | Select the model |
+| `Space ab` | Add the current buffer to the conversation |
+| `Space as` | Send the visual selection (visual mode) |
+| `Space as` | Add the file under the cursor (in Neo-tree or a picker) |
+| `Space aa` | Accept the proposed diff |
+| `Space ad` | Reject the proposed diff |
+
+### Things worth knowing
+
+- **Proposed edits open as a native diff.** Accept with `Space aa` or just `:w`;
+  reject with `Space ad` or `:q`.
+- **Terminals are not restored by sessions** — `sessionoptions` deliberately omits
+  `terminal`, so a restored session never resurrects a dead agent terminal.
+- The terminal itself comes from snacks.nvim, so it shares that window styling.
 
 ## QoL Modules (snacks.nvim)
 
@@ -503,6 +520,142 @@ For delimited files that aren't detected as csv/tsv — pipe- or
 semicolon-separated exports, some log formats — open the file and run
 `:CsvViewEnable`. The delimiter is guessed from `,`, tab, `;`, `|`, `:`
 and space.
+
+## Code Review (diffview.nvim)
+
+Reviewing an agent's branch is a different job from browsing a codebase. Neo-tree
+shows you where files live; Diffview shows you what changed and what to look at
+next. Everything below opens a dedicated tab with a changed-files panel on the
+left, so `Space dc` closes the whole thing and puts you back where you were.
+
+| Keybinding | Action |
+|------------|--------|
+| `Space dr` | Review the current branch against its resolved base |
+| `Space dR` | Pick a base branch, then review against it |
+| `Space db` | Set the review base without opening a diff |
+| `Space dB` | Clear the review base (next diff re-resolves) |
+| `Space dP` | Review with a pathspec filter, to narrow a huge diff |
+| `Space dn` | Show the changed files in Neo-tree instead |
+| `Space dd` | Diff the working tree against the index |
+| `Space dh` | History of the current file |
+| `Space dH` | History of the whole repo |
+| `Space dc` | Close the diff |
+
+Inside a diff:
+
+| Keybinding | Action |
+|------------|--------|
+| `]f` / `[f` | Next / previous changed file |
+| `]c` / `[c` | Next / previous changed hunk |
+| `gf` | Open the real working-tree file (leave the synthetic diff) |
+| `Space df` | Focus the changed-files panel |
+| `Space dt` | Toggle the changed-files panel |
+
+### Choosing a review base
+
+Most tools assume you're diffing against `main`. That's usually wrong here — work
+happens against release candidates, feature branches, and the parent branch of a
+stacked PR. Diffing against the wrong branch silently shows you the wrong change
+set, so the base is resolved explicitly and announced when it's picked.
+
+`Space dr` resolves the base in this order:
+
+1. **A base you set** with `Space dR` or `Space db`, for the current branch.
+2. **The PR's base branch**, from `gh pr view` — GitHub knows the real parent of a
+   stacked PR, so this is the tier that makes stacks work.
+3. **The remote's default branch**, from `origin/HEAD`. Never a hardcoded `main`.
+
+Whatever it lands on is checked against the remote first: `origin/<branch>` if that
+exists, otherwise the local branch, so branches you never pushed still diff.
+
+The result is remembered **per branch** — `Space dr` twice in a row won't re-query
+GitHub, but checking out a different branch re-resolves rather than silently
+reusing the last answer. `Space dB` forgets it.
+
+Diffs use three-dot ranges (`base...HEAD`), so you see what *this branch* changed,
+not everything the base picked up since you branched off it.
+
+### Narrowing a large diff
+
+Agent branches often touch many files when only one subsystem matters. `Space dP`
+prompts for a git pathspec:
+
+- `backend/` — only that directory
+- `:!migrations/ :!generated/` — everything except the noise
+- `*.py` — only Python files
+
+## GitHub PRs (octo.nvim)
+
+Diffview answers "what changed". Octo answers "what did we decide about it" —
+inline comments, threads, suggestions and review submission, all against GitHub
+through the `gh` CLI. The value in an agentic loop is that the review itself
+becomes the handoff: leave comments here, submit, then tell the agent to pull the
+unresolved threads and address them.
+
+| Keybinding / Command | Action |
+|----------------------|--------|
+| `Space dp` | List pull requests |
+| `Space do` | Start a review of the current PR |
+| `Space dS` | Submit the review |
+| `]f` / `[f` | Next / previous changed file |
+| `]t` / `[t` | Next / previous review thread |
+| `:Octo pr checkout` | Check out the PR branch |
+| `:Octo review resume` | Resume a pending review |
+| `:Octo thread resolve` | Resolve the thread under the cursor |
+
+File and thread navigation deliberately matches Diffview, so you don't have to
+remember which review surface you're looking at.
+
+### Things worth knowing
+
+- **The right-hand side is your real checkout**, not a copy fetched from the API,
+  so LSP and edits work normally while reviewing.
+- **`localleader` is also `Space`.** Octo's built-in mappings are
+  `<localleader>p…`/`<localleader>c…`, so inside an Octo buffer `Space p…` is
+  Octo's, not the session keymaps. Buffer-local only — it doesn't affect anything
+  outside Octo.
+- **Projects v2 needs an extra scope.** If you want project fields, run
+  `gh auth refresh -s read:project`. Everything else works without it.
+
+## PR Inbox (gh-dash)
+
+A terminal dashboard of the PRs you care about — think of it as the step *before*
+review, not a review tool. Config lives in `gh-dash/config.yml` in this repo and is
+symlinked to `~/.config/gh-dash/config.yml`, so it travels between machines.
+
+| Keybinding | Action |
+|------------|--------|
+| `Space dg` | Open the gh-dash inbox in a float |
+| `v` | Check the PR out and open it in Diffview at its real base |
+| `c` | Check the PR out and open it in Octo |
+| `O` | Check the PR out |
+| `g` | Open lazygit in the PR's repo |
+| `q` | Close the dashboard |
+
+The `v` binding is the handoff into the review workflow: it passes the PR's actual
+base branch through to the diff, which is what makes it correct for stacked PRs
+rather than a guess.
+
+## Git Hunks (gitsigns.nvim)
+
+The smallest scale of the review loop. Use this after an agent has addressed a
+batch of comments and the question is "what changed in this file since the last
+revision" — Diffview is for the branch-sized view, this is for the buffer.
+
+| Keybinding | Action |
+|------------|--------|
+| `]c` / `[c` | Jump to next / previous changed hunk |
+| `Space hp` | Preview the hunk under the cursor |
+| `Space hs` | Stage the hunk (works on a visual selection too) |
+| `Space hr` | Reset the hunk (works on a visual selection too) |
+| `Space hu` | Unstage the hunk — `stage_hunk` toggles, so same key as staging |
+| `Space hS` | Stage the whole buffer |
+| `Space hR` | Reset the whole buffer |
+| `Space hb` | Blame the current line |
+| `Space hd` | Diff this file against the index |
+| `Space hD` | Diff this file against the last commit |
+| `Space tb` | Toggle inline blame on every line |
+| `Space tD` | Toggle showing deleted lines inline |
 
 ## LSP Coverage by Language
 

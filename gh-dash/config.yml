@@ -1,0 +1,83 @@
+# gh-dash — terminal PR inbox
+# https://gh-dash.dev
+#
+# Symlinked into place, so it travels with this config across machines:
+#   ln -s ~/repos/chance.nvim/gh-dash/config.yml ~/.config/gh-dash/config.yml
+#
+# This is the "which PR am I looking at" step that sits in front of Diffview and
+# Octo — not a review UI itself. The `v` keybinding below is the handoff: check the
+# PR out and open it in Neovim already diffed against its real base branch.
+
+prSections:
+  - title: Mine
+    filters: is:open author:@me
+  - title: Needs my review
+    filters: is:open review-requested:@me
+  - title: Involved
+    filters: is:open involves:@me -author:@me -review-requested:@me
+  - title: Recently merged
+    filters: is:merged author:@me
+    limit: 10
+
+issuesSections:
+  - title: Assigned
+    filters: is:open assignee:@me
+  - title: Mine
+    filters: is:open author:@me
+
+# Kept as a glob rather than a per-repo list so this file stays portable across
+# machines — every checkout lives under ~/repos on all of them.
+repoPaths:
+  "*": ~/repos/*
+
+keybindings:
+  prs:
+    - key: O
+      builtin: checkout
+
+    # The main handoff into the review workflow. `{{.BaseRefName}}` is the PR's
+    # actual base branch, which matters for stacked PRs and RC branches where
+    # guessing `main` would diff against the wrong tree entirely.
+    - key: v
+      name: review in nvim
+      command: >
+        cd {{.RepoPath}} &&
+        gh pr checkout {{.PrNumber}} &&
+        nvim -c "lua require('custom.review').set_base('{{.BaseRefName}}')" -c "lua require('custom.review').open_diff()"
+
+    # Same checkout, but land in the GitHub review UI for leaving durable comments.
+    - key: c
+      name: octo review in nvim
+      command: >
+        cd {{.RepoPath}} &&
+        gh pr checkout {{.PrNumber}} &&
+        nvim -c "Octo pr edit {{.PrNumber}}"
+
+    - key: g
+      name: lazygit
+      command: >
+        cd {{.RepoPath}} && lazygit
+
+defaults:
+  preview:
+    open: true
+    width: 60
+  prsLimit: 20
+  issuesLimit: 20
+  view: prs
+  layout:
+    prs:
+      repo:
+        grow: true
+        width: 10
+      author:
+        width: 12
+      base:
+        hidden: false
+        width: 16
+
+theme:
+  ui:
+    sectionsShowCount: true
+    table:
+      showSeparator: true

@@ -79,11 +79,15 @@ return {
     rename = { enabled = true },
     toggle = { enabled = true },
 
+    -- Terminal backs both claudecode.nvim (via its `snacks` provider) and the
+    -- gh-dash float. Sessions still deliberately exclude `terminal` from
+    -- `sessionoptions` — see init.lua — so neither comes back dead on restore.
+    terminal = { enabled = true },
+
     -- Deliberately off — each would compete with a plugin already configured
     -- here, or was declined during setup.
 
     explorer = { enabled = false }, -- neo-tree owns the file tree
-    terminal = { enabled = false }, -- claude-code.nvim owns terminals
     scroll = { enabled = false },
     image = { enabled = false },
     dim = { enabled = false },

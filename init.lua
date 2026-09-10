@@ -174,7 +174,8 @@ vim.opt.autoread = true
 
 -- What gets stored in a session file (used by auto-session).
 -- `localoptions` is required by auto-session; `terminal` is deliberately
--- omitted so restoring a session doesn't resurrect dead Claude Code terminals.
+-- omitted so restoring a session doesn't resurrect dead agent terminals — a
+-- restored Claude Code or gh-dash terminal comes back as a dead buffer.
 vim.o.sessionoptions = 'blank,buffers,curdir,folds,help,tabpages,winsize,winpos,localoptions'
 
 -- `:E` — like `:edit`, but its completion matches the typed text as a
@@ -182,6 +183,11 @@ vim.o.sessionoptions = 'blank,buffers,curdir,folds,help,tabpages,winsize,winpos,
 -- `lua/custom/plugins/snacks.lua`. Built-in `:e` completion only ever expands
 -- one path segment at a time.
 require('custom.fuzzy_edit').setup()
+
+-- The gh-dash PR inbox. Lives here rather than in a plugin spec because it needs
+-- no plugin beyond snacks, which is always loaded — the rest of the `<leader>d`
+-- review keys are defined by diffview.nvim and octo.nvim.
+vim.keymap.set('n', '<leader>dg', function() require('custom.review').pr_inbox() end, { desc = '[D]iff: [g]h-dash PR inbox' })
 
 -- [[ Basic Keymaps ]]
 --  See `:help vim.keymap.set()`
@@ -379,7 +385,8 @@ require('lazy').setup({
       -- Document existing key chains
       spec = {
         { '<leader>c', group = '[C]ode', mode = { 'n', 'x' } },
-        { '<leader>d', group = '[D]ocument' },
+        { '<leader>d', group = '[D]iff & Review' },
+        { '<leader>a', group = '[A]I' },
         { '<leader>r', group = '[R]ename' },
         { '<leader>s', group = '[S]earch' },
         { '<leader>w', group = '[W]orkspace' },
@@ -1104,7 +1111,10 @@ require('lazy').setup({
   -- require 'kickstart.plugins.autopairs',
   require 'kickstart.plugins.neo-tree',
   require 'kickstart.plugins.wilder',
-  -- require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
+  -- Hunk navigation and staging. This is the smallest scale of the review loop:
+  -- gitsigns for "what changed in this buffer", diffview for the branch-sized
+  -- change set, octo for the GitHub review on top of it.
+  require 'kickstart.plugins.gitsigns',
 
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
   --    This is the easiest way to modularize your config.

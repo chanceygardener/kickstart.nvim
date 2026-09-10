@@ -1,14 +1,53 @@
-# kickstart.nvim
+# chance.nvim
 
-## Introduction
+A personal Neovim configuration, grown out of
+[kickstart.nvim](https://github.com/nvim-lua/kickstart.nvim).
 
-A starting point for Neovim that is:
+It started as stock kickstart and has drifted a long way since: the picker stack
+was migrated to snacks.nvim, treesitter moved to v2, and the config is now built
+around a specific way of working — **supervising coding agents rather than typing
+most of the code yourself**
 
-* Small
-* Single-file
-* Completely Documented
+That shift is what most of the custom configuration is for. When an agent produces
+a branch, the useful unit of navigation stops being the filesystem and starts being
+the change set: what changed, what to look at next, where the review threads are.
+Neo-tree still owns "where does this file live"; Diffview, Octo and gh-dash own
+"what did this branch do".
 
-**NOT** a Neovim distribution, but instead a starting point for your configuration.
+**`CHEATSHEET.md` is the keymap reference.** This file is just setup.
+
+## What's in it
+
+**Review and agent workflow**
+- [diffview.nvim](https://github.com/dlyongemallo/diffview.nvim) — change-set
+  review, with base-branch resolution that understands stacked PRs and RC branches
+  (see `lua/custom/review.lua`, and the "Choosing a review base" section of the
+  cheatsheet)
+- [octo.nvim](https://github.com/pwntester/octo.nvim) — GitHub PR review, inline
+  comments and threads, without the browser
+- [gh-dash](https://github.com/dlvhdr/gh-dash) — terminal PR inbox; config lives in
+  `gh-dash/config.yml` in this repo
+- [claudecode.nvim](https://github.com/coder/claudecode.nvim) — Claude Code over its
+  IDE protocol, so the agent can read editor state and open files here
+- [gitsigns.nvim](https://github.com/lewis6991/gitsigns.nvim) and
+  [unclash.nvim](https://github.com/madmaxieee/unclash.nvim) — hunk-level review and
+  merge-conflict resolution
+
+**Editing and navigation**
+- [snacks.nvim](https://github.com/folke/snacks.nvim) — picker, notifier, input,
+  `vim.ui.select`, terminal, lazygit and a pile of QoL modules. Replaced telescope.
+- [neo-tree.nvim](https://github.com/nvim-neo-tree/neo-tree.nvim) — file tree
+- [auto-session](https://github.com/rmagatti/auto-session) — one session per project
+  directory
+- [grug-far.nvim](https://github.com/MagicDuck/grug-far.nvim) — find and replace
+- [wilder.nvim](https://github.com/gelguy/wilder.nvim) — cmdline completion
+- `:E` — `:edit` with fuzzy subsequence path completion, so `:E lua/sna<Tab>`
+  resolves `lua/custom/plugins/snacks.lua` (see `lua/custom/fuzzy_edit.lua`)
+
+**Language support**
+
+nvim-lspconfig + mason, nvim-cmp, conform.nvim, nvim-lint, and nvim-treesitter on
+`main` (v2). See the cheatsheet for per-language coverage.
 
 ## Installation
 
@@ -23,7 +62,7 @@ first.
 
 ### Install External Dependencies
 
-External Requirements:
+Core:
 - Basic utils: `git`, `make`, `unzip`, `tar`, `curl`, C Compiler (`gcc`)
 - [`tree-sitter` CLI](https://github.com/tree-sitter/tree-sitter/blob/master/crates/cli/README.md)
   **0.26.1 or later** from your OS package manager (not via `npm`), required to
@@ -33,133 +72,109 @@ External Requirements:
 - A [Nerd Font](https://www.nerdfonts.com/): optional, provides various icons
   - if you have it set `vim.g.have_nerd_font` in `init.lua` to true
 - Emoji fonts (Ubuntu only, and only if you want emoji!) `sudo apt install fonts-noto-color-emoji`
-- Language Setup:
-  - If you want to write Typescript, you need `npm`
-  - If you want to write Golang, you will need `go`
-  - etc.
+
+Required by the review workflow:
+- **[`gh`](https://cli.github.com/), authenticated** — `gh auth login`. Octo and
+  the review-base resolution both go through it.
+  - Optional: `gh auth refresh -s read:project` if you want Octo's Projects v2
+    fields. Everything else works without that scope.
+- **[`gh dash`](https://github.com/dlvhdr/gh-dash)** — `gh extension install dlvhdr/gh-dash`
+- **[`lazygit`](https://github.com/jesseduffield/lazygit)** — used by the snacks
+  lazygit keymaps (`Space gg`)
+- **[Claude Code CLI](https://claude.com/claude-code)** — for claudecode.nvim
+
+Language Setup:
+- If you want to write Typescript, you need `npm`
+- If you want to write Golang, you will need `go`
+- etc.
 
 > [!NOTE]
 > See [Install Recipes](#Install-Recipes) for additional Windows and Linux specific notes
 > and quick install snippets
 
-### Install Kickstart
+### Set Up on a New Machine
 
 > [!NOTE]
-> [Backup](#FAQ) your previous configuration (if any exists)
+> Back up any existing configuration first. That means your existing `init.lua`
+> and the Neovim state in `~/.local/share/nvim/`.
 
-Neovim's configurations are located under the following paths, depending on your OS:
-
-| OS | PATH |
-| :- | :--- |
-| Linux, MacOS | `$XDG_CONFIG_HOME/nvim`, `~/.config/nvim` |
-| Windows (cmd)| `%localappdata%\nvim\` |
-| Windows (powershell)| `$env:LOCALAPPDATA\nvim\` |
-
-#### Recommended Step
-
-[Fork](https://docs.github.com/en/get-started/quickstart/fork-a-repo) this repo
-so that you have your own copy that you can modify, then install by cloning the
-fork to your machine using one of the commands below, depending on your OS.
-
-> [!NOTE]
-> Your fork's URL will be something like this:
-> `https://github.com/<your_github_username>/kickstart.nvim.git`
-
-This fork **tracks `lazy-lock.json` in git** so every machine installs the same
-plugin commits. If you merge upstream kickstart, you may need to resolve
-`.gitignore` vs lockfile the same way — lazy.nvim still
-[recommends a lockfile in version control](https://lazy.folke.io/usage/lockfile).
-
-#### Clone kickstart.nvim
-
-> [!NOTE]
-> If following the recommended step above (i.e., forking the repo), replace
-> `nvim-lua` with `<your_github_username>` in the commands below
-
-<details><summary> Linux and Mac </summary>
+**1. Clone the repo** somewhere you keep code, and symlink it into place. Cloning
+directly into `~/.config/nvim` also works, but the symlink keeps the checkout
+alongside your other repos and makes the gh-dash step below read naturally.
 
 ```sh
-git clone https://github.com/nvim-lua/kickstart.nvim.git "${XDG_CONFIG_HOME:-$HOME/.config}"/nvim
+git clone git@github.com:chanceygardener/kickstart.nvim.git ~/repos/chance.nvim
+ln -s ~/repos/chance.nvim "${XDG_CONFIG_HOME:-$HOME/.config}"/nvim
 ```
 
-</details>
+On Windows the config path is `%localappdata%\nvim\` (cmd) or
+`$env:LOCALAPPDATA\nvim\` (powershell).
 
-<details><summary> Windows </summary>
+**2. Link the gh-dash config**, so the PR inbox has the same sections and
+keybindings everywhere:
 
-If you're using `cmd.exe`:
-
-```
-git clone https://github.com/nvim-lua/kickstart.nvim.git "%localappdata%\nvim"
-```
-
-If you're using `powershell.exe`
-
-```
-git clone https://github.com/nvim-lua/kickstart.nvim.git "${env:LOCALAPPDATA}\nvim"
+```sh
+mkdir -p ~/.config/gh-dash
+ln -s ~/repos/chance.nvim/gh-dash/config.yml ~/.config/gh-dash/config.yml
 ```
 
-</details>
+`repoPaths` in that file is a glob (`"*": ~/repos/*`) rather than a list of
+absolute paths, specifically so it stays portable across machines. If you keep
+checkouts somewhere other than `~/repos`, that's the one line to change.
 
-### Post Installation
+**3. Authenticate `gh`** — the review workflow depends on it:
 
-Start Neovim
+```sh
+gh auth login
+gh extension install dlvhdr/gh-dash
+```
+
+**4. Start Neovim.** lazy.nvim installs everything on first launch; `:Lazy` shows
+the status. Mason then installs language servers and formatters in the background —
+`:Mason` shows progress. Treesitter compiles parsers on first use.
 
 ```sh
 nvim
 ```
 
-That's it! Lazy will install all the plugins you have. Use `:Lazy` to view
-the current plugin status. Hit `q` to close the window.
+**5. Check it worked** with `:checkhealth`, then read `CHEATSHEET.md`.
 
-#### Read The Friendly Documentation
+### Layout
 
-Read through the `init.lua` file in your configuration folder for more
-information about extending and exploring Neovim. That also includes
-examples of adding popularly requested plugins.
+```
+init.lua                    most plugin specs and all core settings
+lua/kickstart/plugins/      kickstart's optional modules, enabled from init.lua
+lua/custom/plugins/         personal plugin specs — auto-imported, one file each
+lua/custom/review.lua       review-base resolution shared by the diff entry points
+lua/custom/fuzzy_edit.lua   the `:E` command
+gh-dash/config.yml          gh-dash config, symlinked to ~/.config/gh-dash/
+CHEATSHEET.md               keymap reference
+```
 
-> [!NOTE]
-> For more information about a particular plugin check its repository's documentation.
+`init.lua` ends with `{ import = 'custom.plugins' }`, so **a new file dropped in
+`lua/custom/plugins/` is picked up automatically** — no `init.lua` edit needed.
+Small specs go in `lua/custom/plugins/init.lua`; anything with real configuration
+gets its own file.
 
+This repo **tracks `lazy-lock.json` in git** so every machine installs the same
+plugin commits — lazy.nvim
+[recommends a lockfile in version control](https://lazy.folke.io/usage/lockfile).
+Commit it when you add or update a plugin. Note that upstream kickstart gitignores
+it, so merging from upstream may surface that conflict.
 
-### Getting Started
+### Credits
 
+Forked from [kickstart.nvim](https://github.com/nvim-lua/kickstart.nvim), which
+remains the best starting point if you want to build your own config from scratch.
 [The Only Video You Need to Get Started with Neovim](https://youtu.be/m8C0Cq9Uv9o)
-
-### FAQ
-
-* What should I do if I already have a pre-existing Neovim configuration?
-  * You should back it up and then delete all associated files.
-  * This includes your existing init.lua and the Neovim files in `~/.local`
-    which can be deleted with `rm -rf ~/.local/share/nvim/`
-* Can I keep my existing configuration in parallel to kickstart?
-  * Yes! You can use [NVIM_APPNAME](https://neovim.io/doc/user/starting.html#%24NVIM_APPNAME)`=nvim-NAME`
-    to maintain multiple configurations. For example, you can install the kickstart
-    configuration in `~/.config/nvim-kickstart` and create an alias:
-    ```
-    alias nvim-kickstart='NVIM_APPNAME="nvim-kickstart" nvim'
-    ```
-    When you run Neovim using `nvim-kickstart` alias it will use the alternative
-    config directory and the matching local directory
-    `~/.local/share/nvim-kickstart`. You can apply this approach to any Neovim
-    distribution that you would like to try out.
-* What if I want to "uninstall" this configuration:
-  * See [lazy.nvim uninstall](https://lazy.folke.io/usage#-uninstalling) information
-* Why is the kickstart `init.lua` a single file? Wouldn't it make sense to split it into multiple files?
-  * The main purpose of kickstart is to serve as a teaching tool and a reference
-    configuration that someone can easily use to `git clone` as a basis for their own.
-    As you progress in learning Neovim and Lua, you might consider splitting `init.lua`
-    into smaller parts. A fork of kickstart that does this while maintaining the
-    same functionality is available here:
-    * [kickstart-modular.nvim](https://github.com/dam9000/kickstart-modular.nvim)
-  * Discussions on this topic can be found here:
-    * [Restructure the configuration](https://github.com/nvim-lua/kickstart.nvim/issues/218)
-    * [Reorganize init.lua into a multi-file setup](https://github.com/nvim-lua/kickstart.nvim/pull/473)
+is a good introduction to it.
 
 ### Install Recipes
 
 Below you can find OS specific install instructions for Neovim and dependencies.
 
-After installing all the dependencies continue with the [Install Kickstart](#Install-Kickstart) step.
+After installing all the dependencies continue with the
+[Set Up on a New Machine](#set-up-on-a-new-machine) step.
 
 #### Windows Installation
 
