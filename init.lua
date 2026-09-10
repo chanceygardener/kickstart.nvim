@@ -189,6 +189,23 @@ require('custom.fuzzy_edit').setup()
 -- review keys are defined by diffview.nvim and octo.nvim.
 vim.keymap.set('n', '<leader>dg', function() require('custom.review').pr_inbox() end, { desc = '[D]iff: [g]h-dash PR inbox' })
 
+-- Work context (branch -> PR -> Linear ticket) and the Linear issue UI. `work`
+-- registers autocmds that prime the context after startup, so it needs setup here;
+-- `linear` only registers commands. Both shell out to `gh`/`linear` and need no
+-- plugin beyond snacks, so neither belongs in a lazy spec.
+require('custom.work').setup()
+require('custom.linear').setup()
+
+-- stylua: ignore start
+vim.keymap.set('n', '<leader>lv', function() require('custom.linear').prompt_view() end, { desc = '[L]inear: [v]iew an issue' })
+vim.keymap.set('n', '<leader>ls', function() require('custom.linear').search() end, { desc = '[L]inear: [s]earch all teams' })
+vim.keymap.set('n', '<leader>lS', function() require('custom.linear').search(nil, { this_team = true }) end, { desc = '[L]inear: [S]earch this team' })
+vim.keymap.set('n', '<leader>lt', function() require('custom.linear').current() end, { desc = "[L]inear: this branch's [t]icket" })
+vim.keymap.set('n', '<leader>lo', function() require('custom.linear').open_in_browser() end, { desc = '[L]inear: [o]pen in browser' })
+vim.keymap.set('n', '<leader>lc', function() require('custom.work').show() end, { desc = '[L]inear: work [c]ontext' })
+vim.keymap.set('n', '<leader>lr', function() require('custom.work').refresh() end, { desc = '[L]inear: [r]efresh context' })
+-- stylua: ignore end
+
 -- [[ Basic Keymaps ]]
 --  See `:help vim.keymap.set()`
 
@@ -387,6 +404,7 @@ require('lazy').setup({
         { '<leader>c', group = '[C]ode', mode = { 'n', 'x' } },
         { '<leader>d', group = '[D]iff & Review' },
         { '<leader>a', group = '[A]I' },
+        { '<leader>l', group = '[L]inear' },
         { '<leader>r', group = '[R]ename' },
         { '<leader>s', group = '[S]earch' },
         { '<leader>w', group = '[W]orkspace' },
@@ -991,6 +1009,37 @@ require('lazy').setup({
       ---@diagnostic disable-next-line: duplicate-set-field
       statusline.section_location = function()
         return '%2l:%-2v'
+      end
+
+      -- Append the current Linear ticket and PR number to the git section, so the
+      -- change set you're in is visible without asking for it. Wrapping the
+      -- original rather than replacing `content.active` keeps every other section
+      -- at its default.
+      --
+      -- `work.peek()` is cache-only by contract — no subprocess, no network — which
+      -- matters because this runs on essentially every redraw.
+      local section_git = statusline.section_git
+      ---@diagnostic disable-next-line: duplicate-set-field
+      statusline.section_git = function(args)
+        local git = section_git(args)
+        local work = require('custom.work').peek()
+        if not work then
+          return git
+        end
+
+        local parts = {}
+        if work.issue then
+          parts[#parts + 1] = work.issue
+        end
+        if work.pr then
+          parts[#parts + 1] = '#' .. work.pr
+        end
+        if #parts == 0 then
+          return git
+        end
+
+        local label = (vim.g.have_nerd_font and ' ' or '') .. table.concat(parts, ' · ')
+        return git ~= '' and (git .. ' ' .. label) or label
       end
 
       -- ... and there is more!

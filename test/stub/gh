@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Stand-in for `gh`, used to make work-context tests deterministic.
+#
+# Inert by default: with no GH_STUB_* variables set it execs the real `gh`, so
+# putting test/stub on PATH for a Linear test does not accidentally fake GitHub
+# too. It only intercepts `gh pr view --json ...`.
+#
+# Env knobs:
+#   GH_STUB_PR_TITLE=<title>   simulate an open PR with this title
+#   GH_STUB_PR_NUMBER=<n>      PR number (default 842)
+#   GH_STUB_PR_BASE=<branch>   base branch (default main)
+#   GH_STUB_NO_PR=1            simulate no open PR (exit 1, as real gh does)
+#
+# Example — branch says one ticket, PR title says another:
+#   GH_STUB_PR_TITLE='[ENG-245] do some engineering work' \
+#   PATH="$PWD/test/stub:$PATH" nvim
+
+set -uo pipefail
+
+stub_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Find the real gh, skipping this stub's own directory.
+real_gh=""
+IFS=':' read -ra _parts <<<"$PATH"
+for _p in "${_parts[@]}"; do
+  [ "$_p" = "$stub_dir" ] && continue
+  if [ -x "$_p/gh" ]; then real_gh="$_p/gh"; break; fi
+done
+
+is_pr_view_json=0
+if [ "${1:-}" = "pr" ] && [ "${2:-}" = "view" ]; then
+  for arg in "$@"; do
+    if [ "$arg" = "--json" ]; then is_pr_view_json=1; fi
+  done
+fi
+
+if [ "$is_pr_view_json" -eq 0 ] || { [ -z "${GH_STUB_PR_TITLE:-}" ] && [ -z "${GH_STUB_NO_PR:-}" ]; }; then
+  if [ -n "$real_gh" ]; then exec "$real_gh" "$@"; fi
+  echo "stub: real gh not found on PATH" >&2
+  exit 127
+fi
+
+if [ "${GH_STUB_NO_PR:-}" = "1" ]; then
+  echo "no pull requests found for branch" >&2
+  exit 1
+fi
+
+number="${GH_STUB_PR_NUMBER:-842}"
+base="${GH_STUB_PR_BASE:-main}"
+
+printf '{"number":%s,"title":%s,"baseRefName":"%s","headRefName":"stub-branch","url":"https://github.com/example/repo/pull/%s"}\n' \
+  "$number" \
+  "$(printf '%s' "$GH_STUB_PR_TITLE" | sed 's/\\/\\\\/g; s/"/\\"/g; s/^/"/; s/$/"/')" \
+  "$base" \
+  "$number"

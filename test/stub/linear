@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+# Stand-in for `schpet/linear-cli`, so the Linear integration can be exercised
+# without a Linear account.
+#
+# Output shapes are taken from linear-cli v2.6.0 source, not invented:
+#   * `issue view` prints raw markdown when stdout is not a TTY
+#     (issue-view.ts gates ANSI rendering and the pager on Deno.stdout.isTerminal)
+#   * `issue query --json` prints { nodes, pageInfo, totalCount }, where nodes
+#     carry identifier / title / url / state / assignee / team, and notably NO
+#     description — which is why previews have to fetch per selection
+#   * `issue id` prints the branch's identifier, or exits non-zero
+#
+# Usage:
+#   PATH="$PWD/test/stub:$PATH" nvim
+#
+# Env knobs:
+#   LINEAR_STUB_AUTH_FAIL=1   every call fails as if unauthenticated
+#   LINEAR_STUB_NO_ISSUE=1    `issue id` finds nothing (the pre-PR case)
+#   LINEAR_STUB_BAD_JSON=1    `issue query` emits malformed JSON
+#   LINEAR_STUB_ARGV=<path>   append each invocation's argv, for assertions
+
+set -uo pipefail
+
+if [ -n "${LINEAR_STUB_ARGV:-}" ]; then
+  printf '%s\n' "$*" >>"$LINEAR_STUB_ARGV"
+fi
+
+if [ "${LINEAR_STUB_AUTH_FAIL:-}" = "1" ]; then
+  echo "error: not authenticated. Run 'linear auth login' to set an API key." >&2
+  exit 1
+fi
+
+cmd="${1:-}"
+sub="${2:-}"
+
+if [ "$cmd" != "issue" ]; then
+  echo "stub: unsupported command: $cmd" >&2
+  exit 1
+fi
+
+case "$sub" in
+id)
+  if [ "${LINEAR_STUB_NO_ISSUE:-}" = "1" ]; then
+    echo "error: Could not determine issue ID" >&2
+    exit 1
+  fi
+  echo "ENG-1934"
+  ;;
+
+view)
+  # `-w` / `-a` open externally and print nothing.
+  for arg in "$@"; do
+    if [ "$arg" = "-w" ] || [ "$arg" = "-a" ]; then exit 0; fi
+  done
+
+  id="${3:-ENG-1934}"
+  case "$id" in
+  -*) id="ENG-1934" ;;
+  esac
+
+  if [ "$id" = "ENG-9999" ]; then
+    echo "error: Issue not found: ENG-9999" >&2
+    exit 1
+  fi
+
+  cat <<EOF
+# ${id}: Retry failed ingestion requests
+
+**Status** In Review
+**Assignee** Example User
+**Team** ${id%%-*}
+
+Retries should use exponential backoff so a downstream outage does not turn into
+a thundering herd when the service recovers.
+
+## Acceptance Criteria
+
+- Failed writes must not be duplicated
+- Retry exhaustion must emit a metric
+- Backoff must reset only on a successful write
+EOF
+  ;;
+
+query)
+  if [ "${LINEAR_STUB_BAD_JSON:-}" = "1" ]; then
+    echo '{"nodes": [ this is not json'
+    exit 0
+  fi
+
+  # Two different team keys on purpose: the all-teams default and the team column
+  # are only meaningfully exercised when results span more than one team.
+  cat <<'EOF'
+{
+  "nodes": [
+    {
+      "id": "11111111-1111-1111-1111-111111111111",
+      "identifier": "ENG-1934",
+      "title": "Retry failed ingestion requests",
+      "url": "https://linear.app/example/issue/ENG-1934",
+      "priority": 2,
+      "priorityLabel": "High",
+      "state": { "id": "s1", "name": "In Review", "color": "#5e6ad2", "type": "started" },
+      "assignee": { "id": "u1", "name": "Example User", "displayName": "example", "initials": "EU" },
+      "team": { "id": "t1", "key": "ENG", "name": "Engineering" },
+      "project": { "id": "p1", "name": "Ingestion" }
+    },
+    {
+      "id": "22222222-2222-2222-2222-222222222222",
+      "identifier": "ENG-1812",
+      "title": "Backoff incorrectly resets between attempts",
+      "url": "https://linear.app/example/issue/ENG-1812",
+      "priority": 3,
+      "priorityLabel": "Medium",
+      "state": { "id": "s2", "name": "Todo", "color": "#e2e2e2", "type": "unstarted" },
+      "assignee": null,
+      "team": { "id": "t1", "key": "ENG", "name": "Engineering" },
+      "project": null
+    },
+    {
+      "id": "33333333-3333-3333-3333-333333333333",
+      "identifier": "DATA-441",
+      "title": "Duplicate ingestion rows after worker restart",
+      "url": "https://linear.app/example/issue/DATA-441",
+      "priority": 1,
+      "priorityLabel": "Urgent",
+      "state": { "id": "s3", "name": "In Progress", "color": "#f2c94c", "type": "started" },
+      "assignee": { "id": "u2", "name": "Other Person", "displayName": "other", "initials": "OP" },
+      "team": { "id": "t2", "key": "DATA", "name": "Data Platform" },
+      "project": { "id": "p2", "name": "Pipelines" }
+    }
+  ],
+  "pageInfo": { "hasNextPage": false, "endCursor": null },
+  "totalCount": 3
+}
+EOF
+  ;;
+
+*)
+  echo "stub: unsupported subcommand: issue $sub" >&2
+  exit 1
+  ;;
+esac

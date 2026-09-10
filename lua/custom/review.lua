@@ -15,6 +15,8 @@
 --- Whatever name comes back is remote-resolved: `origin/<name>` if that ref exists,
 --- otherwise the bare local ref, so branches that were never pushed still work.
 
+local git_util = require 'custom.git'
+
 local M = {}
 
 --- Resolved bases, keyed by `<git root>\0<branch>`. Keying on the branch as well as
@@ -23,41 +25,10 @@ local M = {}
 --- unnecessary, since a stale key can never be read.
 local bases = {}
 
---- Run git, returning trimmed stdout, or nil if it failed or produced nothing.
---- Callers treat nil as "unknown" and fall through to the next resolution tier.
----@param args string[]
----@return string|nil
-local function git(args)
-  local cmd = { 'git' }
-  vim.list_extend(cmd, args)
-
-  local result = vim.system(cmd, { text = true }):wait()
-  if result.code ~= 0 then
-    return nil
-  end
-
-  local out = vim.trim(result.stdout or '')
-  return out ~= '' and out or nil
-end
-
----@return string|nil
-local function git_root()
-  return git { 'rev-parse', '--show-toplevel' }
-end
-
----@return string|nil
-local function current_branch()
-  return git { 'rev-parse', '--abbrev-ref', 'HEAD' }
-end
-
----@return string|nil
-local function cache_key()
-  local root = git_root()
-  if not root then
-    return nil
-  end
-  return root .. '\0' .. (current_branch() or '?')
-end
+--- Kept as a local alias so the resolution tiers below read as they did before the
+--- git primitives moved into their own module.
+local git = git_util.run
+local cache_key = git_util.cache_key
 
 --- Turn a branch name into a rev that actually exists, preferring the remote copy.
 --- `--verify --quiet` exits non-zero silently when the ref is missing, so this is
@@ -86,21 +57,15 @@ end
 --- The base branch of the PR for the current branch, per GitHub. This is the tier
 --- that makes stacked PRs work: the parent branch is whatever was opened against,
 --- not the repo default.
+---
+--- Reads it out of `custom.work` rather than calling `gh` here. That module already
+--- fetches the PR to resolve the Linear ticket, and the base branch comes back in
+--- the same payload — so opening a diff and looking up a ticket now share one
+--- request instead of making two.
 ---@return string|nil
 local function pr_base()
-  if vim.fn.executable 'gh' == 0 then
-    return nil
-  end
-
-  -- A non-zero exit here is the common case — no PR open for this branch — not an
-  -- error worth reporting, so this stays quiet and lets the caller fall through.
-  local result = vim.system({ 'gh', 'pr', 'view', '--json', 'baseRefName', '--jq', '.baseRefName' }, { text = true }):wait()
-  if result.code ~= 0 then
-    return nil
-  end
-
-  local out = vim.trim(result.stdout or '')
-  return out ~= '' and out or nil
+  local ctx = require('custom.work').get()
+  return ctx and ctx.base or nil
 end
 
 --- The remote's default branch. `origin/HEAD` is only populated if the remote was

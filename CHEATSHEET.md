@@ -657,6 +657,68 @@ revision" — Diffview is for the branch-sized view, this is for the buffer.
 | `Space tb` | Toggle inline blame on every line |
 | `Space tD` | Toggle showing deleted lines inline |
 
+## Linear (linear-cli)
+
+Linear issues without leaving the editor, and a shared idea of what you're
+currently working on. Everything shells out to the `linear` CLI, the same binary
+the terminal and coding agents use — one login, one command vocabulary.
+
+| Keybinding / Command | Action |
+|----------------------|--------|
+| `Space lv` | View an issue — prompts for an identifier |
+| `Space ls` | Search issues across **all teams** |
+| `Space lS` | Search scoped to this repo's configured team |
+| `Space lt` | View the ticket for the current branch's PR |
+| `Space lo` | Open the current ticket in the browser |
+| `Space lc` | Show the resolved work context |
+| `Space lr` | Re-resolve the work context |
+| `:LinearView ENG-1934` | View a specific issue |
+| `:LinearSearch retry` | Search with a query inline |
+
+Inside the search picker:
+
+| Keybinding | Action |
+|------------|--------|
+| `Enter` | Open the issue |
+| `Ctrl+y` | Copy the identifier |
+| `Ctrl+o` | Open the issue in the browser |
+
+In an issue buffer, `q` closes it. `Space lt` opens the ticket in a **vertical
+split** when a Diffview or Octo review is already on screen, so requirements sit
+beside the change that implements them.
+
+### How the current ticket is resolved
+
+Two sources, in order of how much they can be trusted:
+
+1. **The PR title** — `[ENG-245] do some engineering work`. This is the convention
+   that's actually maintained, so it's authoritative.
+2. **The branch name**, via `linear issue id`. Only reached when there's no PR yet,
+   because branch names carry the ticket inconsistently.
+
+**When the two disagree, the PR title wins** and `Space lc` tells you so. A
+mismatch usually means a branch was reused or cut for a neighbouring ticket in a
+stack — and quietly opening the wrong requirements next to a diff is the failure
+this is built to avoid.
+
+The team key is never assumed, so `DATA-441` and `ENG-1934` both work.
+
+### Things worth knowing
+
+- **Search covers all teams by default.** A repo is often worked by more than one
+  Linear team, but `linear.toml` names only one — scoping to it would silently hide
+  other teams' issues, which defeats the point when you're checking for duplicates
+  before filing. `Space lS` narrows when the workspace-wide list is too noisy.
+- **The context resolves in the background**, shortly after startup and on every
+  branch change, so nothing blocks and the statusline never makes a network call.
+  `Space lr` forces a refresh.
+- **The statusline shows `ENG-1934 · #842`** next to the git branch once resolved.
+  It's blank until then, and blank when there's no ticket.
+- **No PR and no ticket in the branch name means no context** — that's correct, not
+  broken. `Space lv` still looks up any issue by hand.
+- Setup on a new machine is `brew install schpet/tap/linear` then `linear auth
+  login`. See the README.
+
 ## LSP Coverage by Language
 
 | Language / Format | Server | Notes |

@@ -82,6 +82,9 @@ Required by the review workflow:
 - **[`lazygit`](https://github.com/jesseduffield/lazygit)** — used by the snacks
   lazygit keymaps (`Space gg`)
 - **[Claude Code CLI](https://claude.com/claude-code)** — for claudecode.nvim
+- **[`linear`](https://github.com/schpet/linear-cli)** — for the Linear integration
+  (`Space l*`). Optional: everything else works without it, and the config degrades
+  to a single notification if it's missing. See Linear setup below.
 
 Language Setup:
 - If you want to write Typescript, you need `npm`
@@ -139,17 +142,47 @@ nvim
 
 **5. Check it worked** with `:checkhealth`, then read `CHEATSHEET.md`.
 
+### Linear setup
+
+Optional, and separate from the steps above because it needs an account. Skip it
+and everything except the `Space l*` keys works normally.
+
+```sh
+brew install schpet/tap/linear
+linear auth login          # API key from linear.app/settings/account/security
+cd <repo> && linear config # optional — sets this repo's default team
+```
+
+`linear config` is genuinely optional: `Space ls` searches every team and needs no
+configured team. It's only required for `Space lS` (team-scoped search) and for the
+bare-number form (`linear issue view 123`).
+
+Then `Space lt` on a branch with an open PR. No Neovim config changes are needed —
+the integration detects the CLI at runtime.
+
+To work on the integration without a Linear account, see `test/README.md`, which
+documents stub `linear` and `gh` binaries that reproduce the real output shapes.
+
 ### Layout
 
 ```
 init.lua                    most plugin specs and all core settings
 lua/kickstart/plugins/      kickstart's optional modules, enabled from init.lua
 lua/custom/plugins/         personal plugin specs — auto-imported, one file each
+lua/custom/git.lua          git primitives shared by the modules below
+lua/custom/work.lua         current work context: branch -> PR -> Linear ticket
 lua/custom/review.lua       review-base resolution shared by the diff entry points
+lua/custom/linear.lua       Linear issue view and search, over the `linear` CLI
 lua/custom/fuzzy_edit.lua   the `:E` command
 gh-dash/config.yml          gh-dash config, symlinked to ~/.config/gh-dash/
+test/stub/                  fake `linear` and `gh` for offline testing
 CHEATSHEET.md               keymap reference
 ```
+
+`work.lua` is the shared resolver: it makes a single `gh pr view` call whose result
+supplies the PR number, the diff base for `review.lua`, and the Linear ticket for
+`linear.lua`. Anything new that needs to know "what am I working on" should read
+from it rather than shelling out again.
 
 `init.lua` ends with `{ import = 'custom.plugins' }`, so **a new file dropped in
 `lua/custom/plugins/` is picked up automatically** — no `init.lua` edit needed.
