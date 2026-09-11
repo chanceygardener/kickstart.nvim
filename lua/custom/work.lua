@@ -353,6 +353,136 @@ function M.issue_for_repo(r)
   return nil
 end
 
+--- Run one `gh search prs` query, returning raw rows.
+---@param args string[]
+---@param cb fun(rows: table[])
+local function search(args, cb)
+  if vim.fn.executable 'gh' == 0 then
+    return cb {}
+  end
+
+  local cmd = { 'gh', 'search', 'prs', '--state', 'open', '--json', 'number,title,url,repository' }
+  vim.list_extend(cmd, args)
+
+  -- RULE EXCEPTION: async form of vim.system, as elsewhere in this module. The
+  -- switcher runs two of these queries on demand and must not freeze the editor
+  -- while they're in flight.
+  vim.system(cmd, { text = true }, vim.schedule_wrap(function(result)
+    if result.code ~= 0 then
+      return cb {}
+    end
+    local ok, rows = pcall(vim.json.decode, result.stdout or '')
+    cb(ok and type(rows) == 'table' and rows or {})
+  end))
+end
+
+--- Stories worth switching to: yours, ones awaiting your review, and ones you
+--- already visited this session.
+---
+--- Rows are tickets rather than PRs, so a stack shows up once with a count.
+---@param cb fun(items: table[])
+function M.stories(cb)
+  local owner = (require('custom.repo').for_buf(0) or {}).owner
+  local scope = owner and { '--owner', owner } or {}
+
+  local mine, review_requested
+  local function finish()
+    if not (mine and review_requested) then
+      return
+    end
+
+    local items, seen = {}, {}
+    local function add(rows, source)
+      for issue, prs in pairs(M.group_by_issue(rows)) do
+        if not seen[issue] then
+          seen[issue] = true
+          items[#items + 1] = {
+            issue = issue,
+            title = (prs[1].title:gsub('^%s*%[[^%]]+%]%s*', '')),
+            count = #prs,
+            source = source,
+            current = current ~= nil and current.issue == issue,
+            text = issue .. ' ' .. (prs[1].title or ''),
+          }
+        end
+      end
+    end
+
+    add(mine, 'mine')
+    add(review_requested, 'review')
+
+    for issue, ctx in pairs(stories) do
+      if not seen[issue] then
+        seen[issue] = true
+        items[#items + 1] = {
+          issue = issue,
+          title = ctx.title or '',
+          count = #(ctx.prs or {}),
+          source = 'recent',
+          current = current ~= nil and current.issue == issue,
+          text = issue .. ' ' .. (ctx.title or ''),
+        }
+      end
+    end
+
+    table.sort(items, function(a, b)
+      if a.current ~= b.current then
+        return a.current
+      end
+      return a.issue < b.issue
+    end)
+
+    cb(items)
+  end
+
+  local mine_args = vim.list_extend({ '--author', '@me' }, vim.deepcopy(scope))
+  local review_args = vim.list_extend({ '--review-requested', '@me' }, vim.deepcopy(scope))
+
+  search(mine_args, function(rows)
+    mine = rows
+    finish()
+  end)
+  search(review_args, function(rows)
+    review_requested = rows
+    finish()
+  end)
+end
+
+--- Pick a story and switch to it.
+function M.switch()
+  M.stories(function(items)
+    if #items == 0 then
+      vim.notify('work: no open stories found', vim.log.levels.WARN)
+      return
+    end
+
+    Snacks.picker {
+      title = 'Switch story',
+      items = items,
+      format = function(item)
+        return {
+          { item.current and '● ' or '  ', 'SnacksPickerLabel' },
+          { ('%-10s'):format(item.issue), 'SnacksPickerLabel' },
+          { ' ' .. item.title, 'SnacksPickerFile' },
+          { ('  %d PR%s'):format(item.count, item.count == 1 and '' or 's'), 'SnacksPickerComment' },
+          { '  ' .. item.source, 'SnacksPickerComment' },
+        }
+      end,
+      preview = function(ctx)
+        return Snacks.picker.preview.cmd({ 'linear', 'issue', 'view', ctx.item.issue }, ctx, { ft = 'markdown' })
+      end,
+      confirm = function(picker, item)
+        picker:close()
+        if item then
+          M.set_issue(item.issue, function()
+            M.show()
+          end)
+        end
+      end,
+    }
+  end)
+end
+
 --- Report the current story and every PR in it.
 function M.show()
   local ctx = M.context()

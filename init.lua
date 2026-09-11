@@ -204,6 +204,7 @@ vim.keymap.set('n', '<leader>lt', function() require('custom.linear').current() 
 vim.keymap.set('n', '<leader>lo', function() require('custom.linear').open_in_browser() end, { desc = '[L]inear: [o]pen in browser' })
 vim.keymap.set('n', '<leader>lc', function() require('custom.work').show() end, { desc = '[L]inear: work [c]ontext' })
 vim.keymap.set('n', '<leader>lr', function() require('custom.work').refresh() end, { desc = '[L]inear: [r]efresh context' })
+vim.keymap.set('n', '<leader>lw', function() require('custom.work').switch() end, { desc = '[L]inear: s[w]itch story' })
 -- stylua: ignore end
 
 -- [[ Basic Keymaps ]]
