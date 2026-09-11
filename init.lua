@@ -1022,23 +1022,12 @@ require('lazy').setup({
       ---@diagnostic disable-next-line: duplicate-set-field
       statusline.section_git = function(args)
         local git = section_git(args)
-        local work = require('custom.work').peek()
-        if not work then
+        local label = require('custom.work').statusline()
+        if label == '' then
           return git
         end
 
-        local parts = {}
-        if work.issue then
-          parts[#parts + 1] = work.issue
-        end
-        if work.pr then
-          parts[#parts + 1] = '#' .. work.pr
-        end
-        if #parts == 0 then
-          return git
-        end
-
-        local label = (vim.g.have_nerd_font and ' ' or '') .. table.concat(parts, ' · ')
+        label = (vim.g.have_nerd_font and ' ' or '') .. label
         return git ~= '' and (git .. ' ' .. label) or label
       end
 

@@ -21,18 +21,18 @@ local git = require 'custom.git'
 
 local M = {}
 
---- Resolved contexts, keyed by `<root>\0<branch>`. See `custom.git.cache_key`.
+--- Contexts already resolved this session, keyed by ticket. Switching back to a
+--- story you were on ten minutes ago should not re-search GitHub.
 ---@type table<string, table>
-local contexts = {}
+local stories = {}
 
---- The most recent resolution, for render paths that must not touch the
---- filesystem. Separate from `contexts` because reading that requires building a
---- key, which costs two subprocesses.
+--- The sticky current story. One at a time, by design: switching re-points the
+--- ticket, its PRs, the diff base and the statusline, and leaves your windows
+--- alone.
 ---@type table|nil
-local last = nil
+local current = nil
 
---- Whether a resolve is already in flight, so overlapping triggers (a branch
---- change that also fires FocusGained) don't stack up `gh` invocations.
+--- Guards against overlapping resolves stacking up `gh` invocations.
 local resolving = false
 
 --- Pull a Linear issue identifier out of arbitrary text.
@@ -148,230 +148,208 @@ function M.discover(issue, owner, cb)
   )
 end
 
---- The branch, cheaply. Prefers gitsigns, which already watches `.git/HEAD`, so
---- the common case costs nothing.
----@return string|nil
-local function cheap_branch()
-  local head = vim.g.gitsigns_head
-  if head and head ~= '' then
-    return head
-  end
-  return git.branch()
-end
-
---- The ticket from the branch name, via the Linear CLI. Local parse only — no
---- network, no auth — so this is safe to call on any resolve.
----@return string|nil
-local function branch_issue()
-  if vim.fn.executable 'linear' == 0 then
-    return nil
-  end
-
-  -- Non-zero here is the ordinary "branch has no issue id" case, not a failure.
-  local result = vim.system({ 'linear', 'issue', 'id' }, { text = true }):wait()
-  if result.code ~= 0 then
-    return nil
-  end
-
-  return M.parse_identifier(vim.trim(result.stdout or ''))
-end
-
---- Build a context table from a decoded `gh pr view` payload plus the branch.
----@param branch string|nil
----@param pr table|nil
----@return table
-local function build(branch, pr)
-  local ctx = { branch = branch }
-
-  if pr then
-    ctx.pr = pr.number
-    ctx.pr_title = pr.title
-    ctx.pr_url = pr.url
-    ctx.base = pr.baseRefName
-    ctx.issue = M.parse_identifier(pr.title)
-  end
-
-  -- Only consult the branch when the PR didn't supply a ticket. When both exist
-  -- and disagree the PR wins, but the disagreement is recorded rather than
-  -- discarded — it usually means a branch was reused or cut for a neighbouring
-  -- ticket in a stack, and quietly showing the wrong requirements next to a diff
-  -- is exactly the failure this module exists to prevent.
-  local from_branch = branch_issue()
-  if ctx.issue and from_branch and from_branch ~= ctx.issue then
-    ctx.issue_conflict = from_branch
-  elseif not ctx.issue then
-    ctx.issue = from_branch
-  end
-
-  return ctx
-end
-
---- Fetch the PR for the current branch. `nil` means no PR, which is ordinary.
----@param cb fun(pr: table|nil)
-local function fetch_pr(cb)
-  if vim.fn.executable 'gh' == 0 then
-    return cb(nil)
-  end
-
-  -- RULE EXCEPTION: this is the one place in the config that uses the async form
-  -- of `vim.system` rather than the `:wait()` idiom used elsewhere. A cold
-  -- `gh pr view` is 300ms-2s, and this runs on VimEnter and on every branch
-  -- change — blocking there would stall startup and stutter redraws.
-  vim.system(
-    { 'gh', 'pr', 'view', '--json', 'number,title,baseRefName,headRefName,url' },
-    { text = true },
-    vim.schedule_wrap(function(result)
-      if result.code ~= 0 then
-        return cb(nil)
-      end
-
-      local ok, decoded = pcall(vim.json.decode, result.stdout or '')
-      cb(ok and decoded or nil)
-    end)
-  )
-end
-
---- Resolve the context for the current branch, off the main path.
----@param opts? { force?: boolean, notify?: boolean }
+--- Make `issue` the current story, resolving its PRs if not already known.
+---@param issue string
 ---@param cb? fun(ctx: table|nil)
-function M.resolve(opts, cb)
-  opts = opts or {}
+function M.set_issue(issue, cb)
   cb = cb or function() end
+  issue = issue:upper()
 
-  local key = git.cache_key()
-  if not key then
-    return cb(nil)
-  end
-
-  if contexts[key] and not opts.force then
-    last = contexts[key]
-    return cb(contexts[key])
+  local cached = stories[issue]
+  if cached then
+    current = cached
+    return cb(cached)
   end
 
   if resolving then
-    return cb(contexts[key])
+    return cb(nil)
   end
   resolving = true
 
-  local branch = cheap_branch()
-  fetch_pr(function(pr)
+  local owner = (require('custom.repo').for_buf(0) or {}).owner
+  if not owner then
+    resolving = false
+    vim.notify('work: cannot tell which GitHub owner to search — open a file in a repo first', vim.log.levels.WARN)
+    return cb(nil)
+  end
+
+  M.discover(issue, owner, function(prs)
     resolving = false
 
-    local ctx = build(branch, pr)
-    contexts[key] = ctx
-    last = ctx
-
-    if opts.notify and ctx.issue_conflict then
-      vim.notify(
-        ('work: branch suggests %s but the PR title says %s — using %s'):format(ctx.issue_conflict, ctx.issue, ctx.issue),
-        vim.log.levels.WARN
-      )
-    end
-
+    local ctx = { issue = issue, prs = prs, searched_at = os.time() * 1000 }
+    stories[issue] = ctx
+    current = ctx
     cb(ctx)
   end)
 end
 
---- The context for the current branch, resolving synchronously if it isn't cached.
---- Use from keymaps and commands, never from a render path.
+--- The current story, resolving one from the buffer's repo if none is set.
 ---@return table|nil
-function M.get()
-  local key = git.cache_key()
-  if not key then
-    vim.notify('work: not inside a git repository', vim.log.levels.WARN)
+function M.context()
+  if current then
+    return current
+  end
+
+  local r = require('custom.repo').for_buf(0)
+  if not r then
     return nil
   end
 
-  if contexts[key] then
-    last = contexts[key]
-    return contexts[key]
+  -- Derive a starting ticket from this repo's PR, then let set_issue expand it
+  -- into the full story.
+  local issue = M.issue_for_repo(r)
+  if not issue then
+    return nil
   end
 
-  -- No cached answer, and the caller wants one now. Drive the async resolve to
-  -- completion rather than duplicating it in a synchronous form.
   local done = false
-  M.resolve({ notify = true }, function()
+  M.set_issue(issue, function()
     done = true
   end)
   vim.wait(5000, function()
     return done
   end)
 
-  return contexts[key]
+  return current
 end
 
---- The last resolved context, without resolving anything.
----
---- Issues no subprocess and touches no network, so it is safe to call on every
---- statusline redraw. Returns nil until the first resolve lands.
+--- Retained so existing callers in review.lua and linear.lua keep working.
+---@return table|nil
+function M.get()
+  return M.context()
+end
+
+--- The current story without resolving anything. Safe on a render path.
 ---@return table|nil
 function M.peek()
-  return last
+  return current
 end
 
---- Drop the cached context for this branch and resolve it again.
-function M.refresh()
-  local key = git.cache_key()
-  if key then
-    contexts[key] = nil
+--- The story's PR for the repo the current buffer lives in, if any.
+---
+--- Recomputed per call rather than stored, because it depends on the buffer and a
+--- stale answer would point a diff at the wrong repo. Costs one cached path
+--- lookup, no subprocess.
+---@return table|nil
+function M.active()
+  if not current then
+    return nil
   end
 
-  M.resolve({ force = true, notify = true }, function(ctx)
-    if ctx then
-      M.show()
-    else
-      vim.notify('work: could not resolve a work context here', vim.log.levels.WARN)
+  local r = require('custom.repo').for_buf(0)
+  if not r then
+    return nil
+  end
+
+  for _, pr in ipairs(current.prs or {}) do
+    if pr.root == r.root or (pr.repo == r.name and pr.owner == r.owner) then
+      if not pr.base and pr.root then
+        local result = vim.system({
+          'gh', 'pr', 'view', tostring(pr.number),
+          '--repo', ('%s/%s'):format(pr.owner, pr.repo),
+          '--json', 'baseRefName', '--jq', '.baseRefName',
+        }, { text = true }):wait()
+        if result.code == 0 then
+          pr.base = vim.trim(result.stdout or '')
+        end
+      end
+      return pr
     end
-  end)
+  end
+  return nil
 end
 
---- A one-line summary for the statusline. Cache-only; empty when nothing is known.
+--- `ENG-1934 · #12` inside a story repo, `ENG-1934 · 3 PRs` outside one.
 ---@return string
 function M.statusline()
-  local ctx = last
-  if not ctx then
+  if not current then
     return ''
   end
 
-  local parts = {}
-  if ctx.issue then
-    parts[#parts + 1] = ctx.issue
-  end
-  if ctx.pr then
-    parts[#parts + 1] = '#' .. ctx.pr
+  local active = M.active()
+  if active then
+    return ('%s · #%d'):format(current.issue, active.number)
   end
 
-  return table.concat(parts, ' · ')
+  local n = #(current.prs or {})
+  if n == 0 then
+    return current.issue
+  end
+  return ('%s · %d PR%s'):format(current.issue, n, n == 1 and '' or 's')
 end
 
---- Report the resolved context.
+--- The ticket for a single repo, from its PR title, falling back to the branch.
+---@param r table a Repo from custom.repo
+---@return string|nil
+function M.issue_for_repo(r)
+  if vim.fn.executable 'gh' == 1 and r.owner then
+    local result = vim.system({
+      'gh', 'pr', 'view',
+      '--repo', ('%s/%s'):format(r.owner, r.name),
+      '--json', 'number,title,baseRefName,url',
+    }, { text = true, cwd = r.root }):wait()
+
+    if result.code == 0 then
+      local ok, pr = pcall(vim.json.decode, result.stdout or '')
+      if ok and pr and pr.title then
+        local issue = M.parse_identifier(pr.title)
+        if issue then
+          return issue
+        end
+      end
+    end
+  end
+
+  -- Pre-PR fallback: the branch name, via the Linear CLI's local parse.
+  if vim.fn.executable 'linear' == 1 then
+    local result = vim.system({ 'linear', 'issue', 'id' }, { text = true, cwd = r.root }):wait()
+    if result.code == 0 then
+      return M.parse_identifier(vim.trim(result.stdout or ''))
+    end
+  end
+
+  return nil
+end
+
+--- Report the current story and every PR in it.
 function M.show()
-  local ctx = M.get()
+  local ctx = M.context()
   if not ctx then
+    vim.notify('work: no current story — pick one with <leader>lw', vim.log.levels.WARN)
     return
   end
 
-  local lines = {}
-  if ctx.pr then
-    lines[#lines + 1] = ('PR #%d  %s'):format(ctx.pr, ctx.pr_title or '')
-  else
-    lines[#lines + 1] = 'no open PR for this branch'
+  local active = M.active()
+  local lines = { ctx.issue .. (ctx.title and ('  ' .. ctx.title) or '') }
+
+  for _, pr in ipairs(ctx.prs or {}) do
+    local marker = (active and active.number == pr.number and active.repo == pr.repo) and '>' or ' '
+    local where = pr.root and '' or '  (not cloned)'
+    lines[#lines + 1] = ('%s %s #%d%s'):format(marker, pr.repo, pr.number, where)
   end
 
-  if ctx.issue then
-    lines[#lines + 1] = 'issue:  ' .. ctx.issue
-  else
-    lines[#lines + 1] = 'issue:  none found'
+  if #(ctx.prs or {}) == 0 then
+    lines[#lines + 1] = '  no open PRs found for this ticket'
   end
 
-  if ctx.issue_conflict then
-    lines[#lines + 1] = ('        (branch suggests %s — PR title wins)'):format(ctx.issue_conflict)
-  end
-
-  lines[#lines + 1] = 'base:   ' .. (ctx.base or 'unknown')
-  lines[#lines + 1] = 'branch: ' .. (ctx.branch or 'unknown')
+  local age = math.floor((os.time() * 1000 - (ctx.searched_at or 0)) / 1000)
+  lines[#lines + 1] = ('  searched %ds ago — <leader>lr to refresh'):format(age)
 
   vim.notify(table.concat(lines, '\n'), vim.log.levels.INFO, { title = 'work context' })
+end
+
+--- Re-search the current story.
+function M.refresh()
+  local ctx = current
+  if not ctx then
+    vim.notify('work: no current story to refresh', vim.log.levels.WARN)
+    return
+  end
+
+  stories[ctx.issue] = nil
+  M.set_issue(ctx.issue, function()
+    M.show()
+  end)
 end
 
 --- Register the commands and the refresh triggers.
@@ -384,6 +362,16 @@ function M.setup()
     M.refresh()
   end, { desc = 'Re-resolve the work context' })
 
+  vim.api.nvim_create_user_command('WorkSwitch', function(cmd)
+    if cmd.args ~= '' then
+      M.set_issue(cmd.args, function()
+        M.show()
+      end)
+    else
+      M.switch()
+    end
+  end, { nargs = '?', desc = 'Switch the current story' })
+
   -- Its own augroup: `custom.fuzzy_edit` clears `fuzzy-edit` on setup, and any
   -- shared name would wipe whichever registered first.
   local group = vim.api.nvim_create_augroup('work-context', { clear = true })
@@ -393,7 +381,7 @@ function M.setup()
     group = group,
     callback = function()
       vim.defer_fn(function()
-        M.resolve()
+        pcall(M.context)
       end, 200)
     end,
   })
@@ -408,10 +396,7 @@ function M.setup()
       if ev.event == 'User' and ev.match ~= 'GitSignsUpdate' then
         return
       end
-      if last and last.branch == cheap_branch() then
-        return
-      end
-      M.resolve()
+      require('custom.repo').invalidate()
     end,
   })
 end
