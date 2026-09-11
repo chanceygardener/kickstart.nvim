@@ -1190,7 +1190,39 @@ Also add the `:WorkSwitch` command to `M.setup`:
   end, { nargs = '?', desc = 'Switch the current story' })
 ```
 
-- [ ] **Step 6: Run everything and check startup**
+- [ ] **Step 6: Wire the statusline to `work.statusline()`**
+
+`init.lua:1021-1043` currently builds the segment inline and reads `work.pr`, a
+top-level field this task removes. Left alone it would silently drop the PR number.
+It also duplicates the logic `M.statusline()` now owns. Replace the body of the
+`section_git` override (keeping the surrounding comment and the `section_git` local)
+so it reads:
+
+```lua
+      local section_git = statusline.section_git
+      ---@diagnostic disable-next-line: duplicate-set-field
+      statusline.section_git = function(args)
+        local git = section_git(args)
+        local label = require('custom.work').statusline()
+        if label == '' then
+          return git
+        end
+
+        label = (vim.g.have_nerd_font and ' ' or '') .. label
+        return git ~= '' and (git .. ' ' .. label) or label
+      end
+```
+
+Verify it renders:
+
+```bash
+nvim --headless -c 'lua print(string.format("%q", require("mini.statusline").section_git({ trunc_width = 0 }) or ""))' -c 'qa!' 2>&1 | grep -v treesitter
+```
+
+Expected: a string — empty-ish when no story is resolved, containing the ticket
+once one is. It must not error, and must not contain `nil`.
+
+- [ ] **Step 7: Run everything and check startup**
 
 ```bash
 ./test/run.sh
@@ -1200,10 +1232,10 @@ nvim --headless --startuptime /tmp/st.log -c 'qa!' >/dev/null 2>&1 && grep START
 
 Expected: specs pass; startup silent; startup time within ~5ms of 47ms.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add lua/custom/work.lua test/spec/work_spec.lua
+git add lua/custom/work.lua init.lua test/spec/work_spec.lua
 git commit -m "feat(work): anchor context on the ticket, not the repo
 
 A story is a sticky ticket plus every open PR implementing it across repos.

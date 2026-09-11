@@ -4,3 +4,6 @@ test.sh
 nvim
 
 spell/
+
+# subagent-driven-development scratch (ledger, briefs, review packages)
+.superpowers/
