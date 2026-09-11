@@ -39,7 +39,7 @@ Viewing `ENG-9999` returns a not-found error, for exercising that path.
 
 **Inert by default** — with no `GH_STUB_*` variable set it execs the real `gh`, so
 putting this directory on `PATH` for a Linear test doesn't silently fake GitHub too.
-It only ever intercepts `gh pr view --json …`.
+It only ever intercepts `gh pr view --json …` and `gh search prs` (when activated).
 
 | Variable | Effect |
 |---|---|
@@ -47,6 +47,12 @@ It only ever intercepts `gh pr view --json …`.
 | `GH_STUB_PR_NUMBER=<n>` | PR number (default 842) |
 | `GH_STUB_PR_BASE=<branch>` | base branch (default `main`) |
 | `GH_STUB_NO_PR=1` | simulate no open PR (exit 1, as real `gh` does) |
+| `GH_STUB_SEARCH=1` | `search prs` returns a fixed multi-repo, multi-ticket payload |
+| `GH_STUB_ARGV=<path>` | append each intercepted invocation's argv, for assertions |
+
+The search fixture contains a two-PR stack in one repo, a second repo, a repo that
+is deliberately absent from disk, and an unrelated ticket — so grouping, stacking,
+and the not-cloned path are all exercised.
 
 ## Cases worth re-running after changes
 

@@ -34,6 +34,35 @@ if [ "${1:-}" = "pr" ] && [ "${2:-}" = "view" ]; then
   done
 fi
 
+# --- gh search prs ---------------------------------------------------------
+if [ "${1:-}" = "search" ] && [ "${2:-}" = "prs" ] && [ "${GH_STUB_SEARCH:-}" = "1" ]; then
+  if [ -n "${GH_STUB_ARGV:-}" ]; then printf '%s\n' "$*" >>"$GH_STUB_ARGV"; fi
+
+  # Three PRs for ENG-1934 across two repos (one is a two-PR stack), plus an
+  # unrelated ticket so grouping has something to separate. kg-assistant is
+  # deliberately absent from disk to exercise the not-cloned path.
+  cat <<'JSON'
+[
+  { "number": 12, "title": "[ENG-1934] Retry failed ingestion requests",
+    "url": "https://github.com/acme/kgrisk/pull/12",
+    "repository": { "name": "kgrisk", "nameWithOwner": "acme/kgrisk" } },
+  { "number": 13, "title": "[ENG-1934] Retry ingestion: follow-up",
+    "url": "https://github.com/acme/kgrisk/pull/13",
+    "repository": { "name": "kgrisk", "nameWithOwner": "acme/kgrisk" } },
+  { "number": 47, "title": "[ENG-1934] Backoff helper for the loader",
+    "url": "https://github.com/acme/kgloader/pull/47",
+    "repository": { "name": "kgloader", "nameWithOwner": "acme/kgloader" } },
+  { "number": 8, "title": "[ENG-1934] Surface retry state",
+    "url": "https://github.com/acme/kg-assistant/pull/8",
+    "repository": { "name": "kg-assistant", "nameWithOwner": "acme/kg-assistant" } },
+  { "number": 91, "title": "[DATA-441] Duplicate rows after worker restart",
+    "url": "https://github.com/acme/kgloader/pull/91",
+    "repository": { "name": "kgloader", "nameWithOwner": "acme/kgloader" } }
+]
+JSON
+  exit 0
+fi
+
 if [ "$is_pr_view_json" -eq 0 ] || { [ -z "${GH_STUB_PR_TITLE:-}" ] && [ -z "${GH_STUB_NO_PR:-}" ]; }; then
   if [ -n "$real_gh" ]; then exec "$real_gh" "$@"; fi
   echo "stub: real gh not found on PATH" >&2
