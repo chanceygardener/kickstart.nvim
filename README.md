@@ -170,6 +170,7 @@ init.lua                    most plugin specs and all core settings
 lua/kickstart/plugins/      kickstart's optional modules, enabled from init.lua
 lua/custom/plugins/         personal plugin specs — auto-imported, one file each
 lua/custom/git.lua          git primitives shared by the modules below
+lua/custom/repo.lua         which repo a buffer belongs to (buffer-relative)
 lua/custom/work.lua         current work context: branch -> PR -> Linear ticket
 lua/custom/review.lua       review-base resolution shared by the diff entry points
 lua/custom/linear.lua       Linear issue view and search, over the `linear` CLI
@@ -179,10 +180,15 @@ test/stub/                  fake `linear` and `gh` for offline testing
 CHEATSHEET.md               keymap reference
 ```
 
-`work.lua` is the shared resolver: it makes a single `gh pr view` call whose result
-supplies the PR number, the diff base for `review.lua`, and the Linear ticket for
-`linear.lua`. Anything new that needs to know "what am I working on" should read
-from it rather than shelling out again.
+`work.lua` is the shared resolver, and it is anchored on the **ticket** rather than
+a repo: a story is a Linear ticket plus every open PR implementing it, discovered
+with one `gh search prs` scoped to the org derived from the current repo's remote.
+`review.lua` takes its diff base from the story's PR for whichever repo the current
+buffer is in. Because work spans several repos with no monorepo, nothing resolves
+against Neovim's cwd — `repo.lua` answers "which repo is this buffer in" and every
+git call is made against that path.
+
+Run `./test/run.sh` to exercise all of it offline; see `test/README.md`.
 
 `init.lua` ends with `{ import = 'custom.plugins' }`, so **a new file dropped in
 `lua/custom/plugins/` is picked up automatically** — no `init.lua` edit needed.

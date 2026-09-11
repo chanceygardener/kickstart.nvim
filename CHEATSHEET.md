@@ -665,15 +665,15 @@ the terminal and coding agents use — one login, one command vocabulary.
 
 | Keybinding / Command | Action |
 |----------------------|--------|
-| `Space lv` | View an issue — prompts for an identifier |
+| `Space lw` | Switch story — picker of your PRs, review requests, and recents |
+| `Space lc` | Show the current story and all its PRs |
+| `Space lt` | View the current story's Linear ticket |
+| `Space lv` | View any issue — prompts for an identifier |
 | `Space ls` | Search issues across **all teams** |
 | `Space lS` | Search scoped to this repo's configured team |
-| `Space lt` | View the ticket for the current branch's PR |
 | `Space lo` | Open the current ticket in the browser |
-| `Space lc` | Show the resolved work context |
-| `Space lr` | Re-resolve the work context |
-| `:LinearView ENG-1934` | View a specific issue |
-| `:LinearSearch retry` | Search with a query inline |
+| `Space lr` | Re-search the current story |
+| `:WorkSwitch ENG-1934` | Switch directly when you know the ticket |
 
 Inside the search picker:
 
@@ -687,37 +687,32 @@ In an issue buffer, `q` closes it. `Space lt` opens the ticket in a **vertical
 split** when a Diffview or Octo review is already on screen, so requirements sit
 beside the change that implements them.
 
-### How the current ticket is resolved
+### Stories span repos
 
-Two sources, in order of how much they can be trusted:
+Work happens across several repos with no monorepo, so context is anchored on the
+**ticket**, not the repo. A story is a Linear ticket plus every open PR
+implementing it — including a stack of several PRs in one repo, which shows up as
+one story rather than several.
 
-1. **The PR title** — `[ENG-245] do some engineering work`. This is the convention
-   that's actually maintained, so it's authoritative.
-2. **The branch name**, via `linear issue id`. Only reached when there's no PR yet,
-   because branch names carry the ticket inconsistently.
+The ticket is **sticky**: it stays put as you move between buffers in different
+repos, and only changes when you switch. `Space lc` shows the whole story and which
+PR belongs to the repo you're currently in.
 
-**When the two disagree, the PR title wins** and `Space lc` tells you so. A
-mismatch usually means a branch was reused or cut for a neighbouring ticket in a
-stack — and quietly opening the wrong requirements next to a diff is the failure
-this is built to avoid.
+The statusline shows `ENG-1934 · #12` when you're inside one of the story's repos
+and `ENG-1934 · 3 PRs` when you're not.
 
-The team key is never assumed, so `DATA-441` and `ENG-1934` both work.
+Diffs know which repo they belong to, so `Space dr` works even with Neovim launched
+from the parent directory holding every checkout.
 
 ### Things worth knowing
 
-- **Search covers all teams by default.** A repo is often worked by more than one
-  Linear team, but `linear.toml` names only one — scoping to it would silently hide
-  other teams' issues, which defeats the point when you're checking for duplicates
-  before filing. `Space lS` narrows when the workspace-wide list is too noisy.
-- **The context resolves in the background**, shortly after startup and on every
-  branch change, so nothing blocks and the statusline never makes a network call.
-  `Space lr` forces a refresh.
-- **The statusline shows `ENG-1934 · #842`** next to the git branch once resolved.
-  It's blank until then, and blank when there's no ticket.
-- **No PR and no ticket in the branch name means no context** — that's correct, not
-  broken. `Space lv` still looks up any issue by hand.
-- Setup on a new machine is `brew install schpet/tap/linear` then `linear auth
-  login`. See the README.
+- **Switching is by ticket** — `Space lw`, or `:WorkSwitch ENG-1934` when you know
+  it. Switching back to a story you were on is instant; it stays cached.
+- **PRs are the unit of discovery.** A repo where you've started work but haven't
+  pushed a PR won't be listed in the story. You can still work there normally.
+- **GitHub's search index lags a little.** A PR opened seconds ago may not appear
+  yet; `Space lc` shows how long ago the search ran and `Space lr` re-runs it.
+- **Repos not cloned locally** are listed and marked, rather than failing.
 
 ## LSP Coverage by Language
 

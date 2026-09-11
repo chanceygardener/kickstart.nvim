@@ -10,6 +10,17 @@ Put them first on `PATH`:
 PATH="$PWD/test/stub:$PATH" nvim
 ```
 
+## Running the specs
+
+```sh
+./test/run.sh          # everything
+./test/run.sh work     # only specs matching "work"
+```
+
+Specs live in `test/spec/*_spec.lua` and run under `nvim -l`, which loads the real
+config — so they exercise the modules exactly as a live session does. The runner
+puts `test/stub` first on `PATH` and exits non-zero if any spec fails.
+
 ## `linear`
 
 Mimics [`schpet/linear-cli`](https://github.com/schpet/linear-cli) v2.6.0. The
