@@ -171,7 +171,7 @@ lua/kickstart/plugins/      kickstart's optional modules, enabled from init.lua
 lua/custom/plugins/         personal plugin specs — auto-imported, one file each
 lua/custom/git.lua          git primitives shared by the modules below
 lua/custom/repo.lua         which repo a buffer belongs to (buffer-relative)
-lua/custom/work.lua         current work context: branch -> PR -> Linear ticket
+lua/custom/work.lua         story context: a ticket plus all open PRs implementing it
 lua/custom/review.lua       review-base resolution shared by the diff entry points
 lua/custom/linear.lua       Linear issue view and search, over the `linear` CLI
 lua/custom/fuzzy_edit.lua   the `:E` command
