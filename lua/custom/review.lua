@@ -80,12 +80,13 @@ end
 --- Tries the cheap path first: `work.active()` is a cache hit whenever a story
 --- is already set. When it is not — most opens, since a story is opt-in — this
 --- falls back to a direct `gh pr view` scoped to just this buffer's repo via
---- `--repo`, so it works regardless of cwd. Without this fallback, a repo with
---- no story set would fall straight to the default branch and get the wrong
---- tree for any stacked PR, then cache that wrong answer. Deliberately does
---- NOT call `work.context()`, which would trigger a full cross-repo story
---- discovery (two GitHub queries) just to open a diff. A non-zero exit here
---- means "no open PR", which is ordinary — return nil quietly.
+--- `cwd`, so it works regardless of Neovim's own cwd. Without this fallback, a
+--- repo with no story set would fall straight to the default branch and get
+--- the wrong tree for any stacked PR, then cache that wrong answer.
+--- Deliberately does NOT call `work.context()`, which would trigger a full
+--- cross-repo story discovery (two GitHub queries) just to open a diff. A
+--- non-zero exit here means "no open PR", which is ordinary — return nil
+--- quietly.
 ---@return string|nil
 local function pr_base()
   local active = require('custom.work').active()
@@ -102,9 +103,12 @@ local function pr_base()
     return nil
   end
 
+  -- No `--repo` here: real `gh pr view` rejects `--repo` unless a PR
+  -- number, URL, or branch is also given ("argument required when using
+  -- the --repo flag") — it can only infer "the current branch's PR" from
+  -- the working directory, which is exactly what `cwd = r.root` supplies.
   local result = vim.system({
     'gh', 'pr', 'view',
-    '--repo', ('%s/%s'):format(r.owner, r.name),
     '--json', 'baseRefName', '--jq', '.baseRefName',
   }, { text = true, cwd = r.root }):wait()
   if result.code ~= 0 then

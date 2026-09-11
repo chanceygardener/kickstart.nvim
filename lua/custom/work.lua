@@ -356,9 +356,12 @@ end
 ---@return string|nil
 function M.issue_for_repo(r)
   if vim.fn.executable 'gh' == 1 and r.owner then
+    -- No `--repo` here: real `gh pr view` rejects `--repo` unless a PR
+    -- number, URL, or branch is also given ("argument required when using
+    -- the --repo flag") — it can only infer "the current branch's PR" from
+    -- the working directory, which is exactly what `cwd = r.root` supplies.
     local result = vim.system({
       'gh', 'pr', 'view',
-      '--repo', ('%s/%s'):format(r.owner, r.name),
       '--json', 'number,title,baseRefName,url',
     }, { text = true, cwd = r.root }):wait()
 
@@ -576,8 +579,11 @@ local function prime_from_buffer()
     return
   end
 
+  -- No `--repo` here, same reason as `issue_for_repo`: real `gh pr view`
+  -- rejects `--repo` without a PR number/URL/branch too. `cwd = r.root`
+  -- below is what lets it infer the current branch's PR.
   vim.system(
-    { 'gh', 'pr', 'view', '--repo', ('%s/%s'):format(r.owner, r.name), '--json', 'number,title,baseRefName,url' },
+    { 'gh', 'pr', 'view', '--json', 'number,title,baseRefName,url' },
     { text = true, cwd = r.root },
     vim.schedule_wrap(function(result)
       -- A `:WorkSwitch` (or anything else that sets a story) during the
