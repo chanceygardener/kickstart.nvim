@@ -53,6 +53,101 @@ function M.parse_identifier(text)
   return id and id:upper() or nil
 end
 
+--- Where a discovered repo lives on disk, if it is checked out beside the one we
+--- are already in.
+---
+--- The remote is re-checked rather than trusting the directory name, so a
+--- coincidentally-named sibling cannot be adopted into a story.
+---@param name string
+---@param owner string
+---@param near string|nil an existing repo root to look beside
+---@return string|nil
+local function sibling_root(name, owner, near)
+  if not near then
+    return nil
+  end
+
+  local candidate = vim.fn.fnamemodify(near, ':h') .. '/' .. name
+  if vim.fn.isdirectory(candidate) ~= 1 then
+    return nil
+  end
+
+  local got_owner, got_name = git.remote(candidate)
+  if got_owner == owner and got_name == name then
+    return candidate
+  end
+  return nil
+end
+
+--- Group raw `gh search prs` rows by the ticket in their titles.
+---
+--- Several PRs for one ticket is the normal stacked-PR case, so this returns a
+--- list per ticket rather than a single PR. Rows whose title carries no
+--- identifier are dropped — they are not part of any story we can name.
+---@param rows table[]
+---@param near? string a repo root to resolve sibling checkouts against
+---@return table<string, table[]>
+function M.group_by_issue(rows, near)
+  local grouped = {}
+
+  for _, row in ipairs(rows or {}) do
+    local issue = M.parse_identifier(row.title)
+    if issue then
+      local full = row.repository and row.repository.nameWithOwner or ''
+      local owner = full:match '^([^/]+)/' or ''
+      local name = row.repository and row.repository.name or full:match '/(.+)$' or ''
+
+      grouped[issue] = grouped[issue] or {}
+      table.insert(grouped[issue], {
+        repo = name,
+        owner = owner,
+        number = row.number,
+        title = row.title,
+        url = row.url,
+        root = sibling_root(name, owner, near),
+      })
+    end
+  end
+
+  return grouped
+end
+
+--- Every open PR whose title names `issue`, across the owner's repos.
+---
+--- One search rather than a walk over sibling directories: the title convention
+--- is reliable, and a repo with work but no PR is not part of a story we can
+--- discover anyway.
+---@param issue string
+---@param owner string
+---@param cb fun(prs: table[])
+function M.discover(issue, owner, cb)
+  if vim.fn.executable 'gh' == 0 then
+    return cb {}
+  end
+
+  local near = (require('custom.repo').for_buf(0) or {}).root
+
+  -- RULE EXCEPTION: async form of vim.system, as elsewhere in this module. A
+  -- cross-repo search is slower than a single `gh pr view` and this runs on
+  -- context switches, where blocking would be felt immediately.
+  vim.system(
+    { 'gh', 'search', 'prs', ('[%s]'):format(issue), '--owner', owner, '--state', 'open', '--json', 'number,title,url,repository' },
+    { text = true },
+    vim.schedule_wrap(function(result)
+      if result.code ~= 0 then
+        return cb {}
+      end
+
+      local ok, rows = pcall(vim.json.decode, result.stdout or '')
+      if not ok or type(rows) ~= 'table' then
+        return cb {}
+      end
+
+      cb(M.group_by_issue(rows, near)[issue] or {})
+    end)
+  )
+end
+
 --- The branch, cheaply. Prefers gitsigns, which already watches `.git/HEAD`, so
 --- the common case costs nothing.
 ---@return string|nil
