@@ -561,7 +561,9 @@ set, so the base is resolved explicitly and announced when it's picked.
 `Space dr` resolves the base in this order:
 
 1. **A base you set** with `Space dR` or `Space db`, for the current branch.
-2. **The PR's base branch**, from `gh pr view` — GitHub knows the real parent of a
+2. **The PR's base branch.** The current story's PR for this repo, if one is set
+   (cache-only, costs nothing extra); otherwise a direct `gh pr view` scoped to
+   just this buffer's repo. Either way, GitHub knows the real parent of a
    stacked PR, so this is the tier that makes stacks work.
 3. **The remote's default branch**, from `origin/HEAD`. Never a hardcoded `main`.
 

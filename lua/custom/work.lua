@@ -191,7 +191,16 @@ function M.set_issue(issue, cb)
       return cb(nil)
     end
 
-    local ctx = { issue = issue, prs = prs, searched_at = os.time() * 1000 }
+    -- `title` mirrors how `stories()` derives its own row titles, stripping
+    -- the `[TICKET]` prefix — needed so the switcher's "recent" rows (which
+    -- read a cached context rather than a fresh `gh search prs` row) have
+    -- something to show instead of a blank title.
+    local ctx = {
+      issue = issue,
+      prs = prs,
+      title = prs[1] and (prs[1].title:gsub('^%s*%[[^%]]+%]%s*', '')) or nil,
+      searched_at = os.time() * 1000,
+    }
     stories[issue] = ctx
     current = ctx
     cb(ctx)
@@ -280,15 +289,37 @@ function M.active()
     return nil
   end
 
-  if not pr.base and pr.root then
+  -- Gated on `not pr.base` alone, not `pr.root` too: `--repo` scopes this call
+  -- on its own, so it needs no local checkout. Gating on `pr.root` used to
+  -- skip the backfill entirely for a clone whose directory basename doesn't
+  -- match the GitHub repo name (`sibling_root` only sets `root` when it
+  -- does) — a renamed checkout or a worktree, silently falling through to
+  -- the default branch with no backfill at all.
+  if not pr.base then
     local result = vim.system({
       'gh', 'pr', 'view', tostring(pr.number),
       '--repo', ('%s/%s'):format(pr.owner, pr.repo),
-      '--json', 'baseRefName', '--jq', '.baseRefName',
+      '--json', 'baseRefName,headRefName',
     }, { text = true }):wait()
     if result.code == 0 then
-      pr.base = vim.trim(result.stdout or '')
+      local ok, decoded = pcall(vim.json.decode, result.stdout or '')
+      if ok and type(decoded) == 'table' then
+        pr.base = decoded.baseRefName
+        pr.head = decoded.headRefName
+      end
     end
+  end
+
+  -- The story's PR for this repo can be based on a branch other than the one
+  -- actually checked out here — e.g. the story's kgrisk PR is `feat/parent`,
+  -- but this kgrisk checkout is on `release/2.1` for unrelated work. Diffing
+  -- against that PR's base would silently pick the wrong tree, so treat the
+  -- match as no match at all. `gh search prs` cannot return `headRefName`, so
+  -- this can only be checked once the backfill above has resolved it at
+  -- least once; an unresolved `pr.head` (backfill never ran or failed) is
+  -- "unknown", not a mismatch, and is let through as before.
+  if pr.head and r.branch and pr.head ~= r.branch then
+    return nil
   end
 
   return pr
@@ -549,6 +580,14 @@ local function prime_from_buffer()
     { 'gh', 'pr', 'view', '--repo', ('%s/%s'):format(r.owner, r.name), '--json', 'number,title,baseRefName,url' },
     { text = true, cwd = r.root },
     vim.schedule_wrap(function(result)
+      -- A `:WorkSwitch` (or anything else that sets a story) during the
+      -- 300ms-2s this backfill takes must win — re-checking `current` here
+      -- stops this callback from silently overwriting an explicit choice
+      -- made while it was in flight, with no way for the user to notice.
+      if current then
+        return
+      end
+
       if result.code ~= 0 then
         return
       end

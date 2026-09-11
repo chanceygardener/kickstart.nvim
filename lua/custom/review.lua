@@ -9,7 +9,10 @@
 ---
 --- Resolution order:
 ---   1. A base you set for this branch, via `set_base` or `pick_base`.
----   2. `gh pr view` — GitHub knows the real parent of a stacked PR.
+---   2. The current story's PR for this repo (`custom.work`, cache-only here),
+---      falling back to a direct `gh pr view` scoped to just this buffer's
+---      repo when no story is set — GitHub knows the real parent of a stacked
+---      PR either way.
 ---   3. The remote's default branch, from `origin/HEAD`. Never a hardcoded `main`.
 ---
 --- Whatever name comes back is remote-resolved: `origin/<name>` if that ref exists,
@@ -73,10 +76,43 @@ end
 --- Comes from the story's PR for this repo. A story spans repos, so "the base"
 --- is only meaningful relative to one of them — which is why this is keyed off
 --- the buffer rather than being a property of the story.
+---
+--- Tries the cheap path first: `work.active()` is a cache hit whenever a story
+--- is already set. When it is not — most opens, since a story is opt-in — this
+--- falls back to a direct `gh pr view` scoped to just this buffer's repo via
+--- `--repo`, so it works regardless of cwd. Without this fallback, a repo with
+--- no story set would fall straight to the default branch and get the wrong
+--- tree for any stacked PR, then cache that wrong answer. Deliberately does
+--- NOT call `work.context()`, which would trigger a full cross-repo story
+--- discovery (two GitHub queries) just to open a diff. A non-zero exit here
+--- means "no open PR", which is ordinary — return nil quietly.
 ---@return string|nil
 local function pr_base()
   local active = require('custom.work').active()
-  return active and active.base or nil
+  if active and active.base then
+    return active.base
+  end
+
+  if vim.fn.executable 'gh' == 0 then
+    return nil
+  end
+
+  local r = require('custom.repo').for_buf(0)
+  if not (r and r.owner) then
+    return nil
+  end
+
+  local result = vim.system({
+    'gh', 'pr', 'view',
+    '--repo', ('%s/%s'):format(r.owner, r.name),
+    '--json', 'baseRefName', '--jq', '.baseRefName',
+  }, { text = true, cwd = r.root }):wait()
+  if result.code ~= 0 then
+    return nil
+  end
+
+  local base = vim.trim(result.stdout or '')
+  return base ~= '' and base or nil
 end
 
 --- The remote's default branch. `origin/HEAD` is only populated if the remote was

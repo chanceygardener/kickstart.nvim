@@ -58,10 +58,28 @@ function M.remote(dir)
     return nil, nil
   end
 
+  -- `.git`-suffixed remotes — scp-style `git@host:owner/name.git` or a URL
+  -- `scheme://host/owner/name.git` — always carry two path segments before
+  -- the suffix, so this tier is unambiguous.
   local owner, name = url:match '[:/]([^/:]+)/([^/]-)%.git$'
-  if not owner then
-    owner, name = url:match '[:/]([^/:]+)/([^/]+)$'
+  if owner then
+    return owner, name
   end
+
+  -- scp-style without `.git`: `git@host:owner/name`. The colon only ever
+  -- separates the host from the owner/name pair in this form, so matching
+  -- generically off it is safe.
+  owner, name = url:match ':([^/:]+)/([^/]+)$'
+  if owner then
+    return owner, name
+  end
+
+  -- URL form without `.git`: require two path segments after the host
+  -- (`owner/name`), not one. A single-segment remote like
+  -- `https://host/reponame` must not be misread as owner=host,
+  -- name=reponame — a silent-wrong-owner risk, since owner scoping drives
+  -- the cross-repo PR search.
+  owner, name = url:match '^%a+://[^/]+/([^/]+)/([^/]+)$'
   return owner, name
 end
 

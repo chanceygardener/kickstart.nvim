@@ -1023,13 +1023,21 @@ require('lazy').setup({
       ---@diagnostic disable-next-line: duplicate-set-field
       statusline.section_git = function(args)
         local git = section_git(args)
+        -- `section_git` returns '' when `trunc_width` says the window is too
+        -- narrow. Appending the label anyway would defeat that truncation,
+        -- regaining a long `ENG-1934 · 4 PRs` in a split that was supposed
+        -- to drop it.
+        if git == '' then
+          return git
+        end
+
         local label = require('custom.work').statusline()
         if label == '' then
           return git
         end
 
         label = (vim.g.have_nerd_font and ' ' or '') .. label
-        return git ~= '' and (git .. ' ' .. label) or label
+        return git .. ' ' .. label
       end
 
       -- ... and there is more!

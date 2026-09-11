@@ -9,6 +9,7 @@
 #   GH_STUB_PR_TITLE=<title>   simulate an open PR with this title
 #   GH_STUB_PR_NUMBER=<n>      PR number (default 842)
 #   GH_STUB_PR_BASE=<branch>   base branch (default main)
+#   GH_STUB_PR_HEAD=<branch>   head branch (default stub-branch)
 #   GH_STUB_NO_PR=1            simulate no open PR (exit 1, as real gh does)
 #
 # Example — branch says one ticket, PR title says another:
@@ -76,9 +77,11 @@ fi
 
 number="${GH_STUB_PR_NUMBER:-842}"
 base="${GH_STUB_PR_BASE:-main}"
+head="${GH_STUB_PR_HEAD:-stub-branch}"
 
-printf '{"number":%s,"title":%s,"baseRefName":"%s","headRefName":"stub-branch","url":"https://github.com/example/repo/pull/%s"}\n' \
+printf '{"number":%s,"title":%s,"baseRefName":"%s","headRefName":"%s","url":"https://github.com/example/repo/pull/%s"}\n' \
   "$number" \
   "$(printf '%s' "$GH_STUB_PR_TITLE" | sed 's/\\/\\\\/g; s/"/\\"/g; s/^/"/; s/$/"/')" \
   "$base" \
+  "$head" \
   "$number"

@@ -155,12 +155,7 @@ function M.current()
 
   local ctx = require('custom.work').get()
   if not ctx then
-    return
-  end
-
-  if not ctx.issue then
-    local why = ctx.pr and 'no ticket in the PR title' or 'no open PR for this branch'
-    vim.notify(('linear: %s — use <leader>lv to look one up'):format(why), vim.log.levels.WARN)
+    vim.notify('linear: no current story — pick one with <leader>lw, or look one up with <leader>lv', vim.log.levels.WARN)
     return
   end
 
