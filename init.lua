@@ -1016,8 +1016,8 @@ require('lazy').setup({
       -- original rather than replacing `content.active` keeps every other section
       -- at its default.
       --
-      -- `work.peek()` is cache-only by contract — no subprocess, no network — which
-      -- matters because this runs on essentially every redraw.
+      -- `work.statusline()` is cache-only by contract — no subprocess, no network —
+      -- which matters because this runs on essentially every redraw.
       local section_git = statusline.section_git
       ---@diagnostic disable-next-line: duplicate-set-field
       statusline.section_git = function(args)

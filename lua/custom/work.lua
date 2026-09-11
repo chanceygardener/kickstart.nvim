@@ -1,21 +1,23 @@
---- Current work context: branch, PR, base branch, Linear ticket.
+--- Current work context: a sticky ticket and every open PR implementing it,
+--- across repos.
 ---
---- One resolver shared by everything that needs to know what you're working on —
---- the diff base in `custom.review`, the ticket lookup in `custom.linear`, and the
---- statusline segment. Resolving it once in one place is the point: before this,
---- opening a diff and looking up a ticket each made their own `gh pr view` call.
+--- Work spans several repos with no monorepo, so "what am I working on" cannot
+--- be answered from one repo's branch — it has to be answered from the ticket,
+--- with `active()` picking out whichever of the story's PRs belongs to the repo
+--- the current buffer is in. One resolver shared by everything that needs this —
+--- the diff base in `custom.review`, the ticket lookup in `custom.linear`, and
+--- the statusline segment.
 ---
---- Resolution is ordered by *reliability*, not by cost:
+--- A story is found in one of two ways:
 ---
----   1. The PR title. `[ENG-245] do some engineering work` is the convention that
----      is actually maintained, so this is authoritative.
----   2. `linear issue id` — parses the branch name. Only reaches this for work
----      that has no PR yet, because branch names carry the ticket inconsistently.
+---   1. Explicitly, via `set_issue`/`:WorkSwitch` — you name the ticket.
+---   2. Implicitly, via `context()`: the current buffer's repo's own PR title
+---      names a ticket (`[ENG-245] do some engineering work`), or, pre-PR, the
+---      branch name via `linear issue id`. That ticket then becomes the story,
+---      widened to every PR across every repo that implements it.
 ---
---- That ordering puts a network call on the main path, which is why the cache and
---- the async priming below matter. It costs nothing extra though: the PR number
---- and base branch require `gh pr view` regardless, so the ticket falls out of a
---- request that was already happening.
+--- Once a story is current, it is cached by ticket for the rest of the session —
+--- switching back to one you were on ten minutes ago does not re-search GitHub.
 
 local git = require 'custom.git'
 
@@ -117,12 +119,18 @@ end
 --- One search rather than a walk over sibling directories: the title convention
 --- is reliable, and a repo with work but no PR is not part of a story we can
 --- discover anyway.
+---
+--- `nil` means the search itself could not be attempted or trusted — no `gh`, a
+--- non-zero exit, or unparseable output. An empty list means the search ran and
+--- genuinely found nothing. Callers must not treat the two as the same: caching
+--- a transient `gh` failure as "0 PRs" would turn one bad network call into a
+--- permanently wrong answer for that ticket.
 ---@param issue string
 ---@param owner string
----@param cb fun(prs: table[])
+---@param cb fun(prs: table[]|nil)
 function M.discover(issue, owner, cb)
   if vim.fn.executable 'gh' == 0 then
-    return cb {}
+    return cb(nil)
   end
 
   local near = (require('custom.repo').for_buf(0) or {}).root
@@ -135,12 +143,12 @@ function M.discover(issue, owner, cb)
     { text = true },
     vim.schedule_wrap(function(result)
       if result.code ~= 0 then
-        return cb {}
+        return cb(nil)
       end
 
       local ok, rows = pcall(vim.json.decode, result.stdout or '')
       if not ok or type(rows) ~= 'table' then
-        return cb {}
+        return cb(nil)
       end
 
       cb(M.group_by_issue(rows, near)[issue] or {})
@@ -175,6 +183,13 @@ function M.set_issue(issue, cb)
 
   M.discover(issue, owner, function(prs)
     resolving = false
+
+    -- A nil result means the search failed or couldn't be attempted, not that
+    -- the ticket has no PRs. Do not cache that as a definitive answer — an
+    -- outage would otherwise become a permanent "0 PRs" for this ticket.
+    if not prs then
+      return cb(nil)
+    end
 
     local ctx = { issue = issue, prs = prs, searched_at = os.time() * 1000 }
     stories[issue] = ctx
@@ -225,11 +240,30 @@ function M.peek()
   return current
 end
 
+--- The story's PR whose repo identity matches `r`, without any base-branch
+--- backfill.
+---
+--- Shared by `active()`, which backfills a missing base and may shell out, and
+--- `statusline()`, which must not do either — pulling the match itself out into
+--- a pure lookup keeps that difference from duplicating the matching logic.
+---@param r table a Repo from custom.repo
+---@return table|nil
+local function pr_for_repo(r)
+  for _, pr in ipairs((current or {}).prs or {}) do
+    if pr.root == r.root or (pr.repo == r.name and pr.owner == r.owner) then
+      return pr
+    end
+  end
+  return nil
+end
+
 --- The story's PR for the repo the current buffer lives in, if any.
 ---
 --- Recomputed per call rather than stored, because it depends on the buffer and a
---- stale answer would point a diff at the wrong repo. Costs one cached path
---- lookup, no subprocess.
+--- stale answer would point a diff at the wrong repo. May shell out: a cold
+--- repo cache costs the `git` calls behind `custom.repo.for_buf`, and a PR whose
+--- base branch isn't known yet costs one `gh pr view`. Fine from a keymap or
+--- command; never call this from a render path — use `statusline()` there.
 ---@return table|nil
 function M.active()
   if not current then
@@ -241,34 +275,42 @@ function M.active()
     return nil
   end
 
-  for _, pr in ipairs(current.prs or {}) do
-    if pr.root == r.root or (pr.repo == r.name and pr.owner == r.owner) then
-      if not pr.base and pr.root then
-        local result = vim.system({
-          'gh', 'pr', 'view', tostring(pr.number),
-          '--repo', ('%s/%s'):format(pr.owner, pr.repo),
-          '--json', 'baseRefName', '--jq', '.baseRefName',
-        }, { text = true }):wait()
-        if result.code == 0 then
-          pr.base = vim.trim(result.stdout or '')
-        end
-      end
-      return pr
+  local pr = pr_for_repo(r)
+  if not pr then
+    return nil
+  end
+
+  if not pr.base and pr.root then
+    local result = vim.system({
+      'gh', 'pr', 'view', tostring(pr.number),
+      '--repo', ('%s/%s'):format(pr.owner, pr.repo),
+      '--json', 'baseRefName', '--jq', '.baseRefName',
+    }, { text = true }):wait()
+    if result.code == 0 then
+      pr.base = vim.trim(result.stdout or '')
     end
   end
-  return nil
+
+  return pr
 end
 
 --- `ENG-1934 · #12` inside a story repo, `ENG-1934 · 3 PRs` outside one.
+---
+--- Cache-only, like `peek()`: reads the buffer's repo through
+--- `custom.repo.peek_for_buf`, which answers from cache or not at all, and never
+--- calls `active()`, which can shell out to backfill a base branch. A cold repo
+--- cache just falls back to the PR-count form rather than spawning anything —
+--- this runs on essentially every redraw and must never touch a subprocess.
 ---@return string
 function M.statusline()
   if not current then
     return ''
   end
 
-  local active = M.active()
-  if active then
-    return ('%s · #%d'):format(current.issue, active.number)
+  local r = require('custom.repo').peek_for_buf(0)
+  local pr = r and pr_for_repo(r)
+  if pr then
+    return ('%s · #%d'):format(current.issue, pr.number)
   end
 
   local n = #(current.prs or {})
@@ -320,7 +362,7 @@ function M.show()
   end
 
   local active = M.active()
-  local lines = { ctx.issue .. (ctx.title and ('  ' .. ctx.title) or '') }
+  local lines = { ctx.issue }
 
   for _, pr in ipairs(ctx.prs or {}) do
     local marker = (active and active.number == pr.number and active.repo == pr.repo) and '>' or ' '
@@ -352,7 +394,49 @@ function M.refresh()
   end)
 end
 
---- Register the commands and the refresh triggers.
+--- Prime the current story from the buffer's repo, without blocking.
+---
+--- Startup-only best effort: it takes just the PR-title path, skipping the
+--- `linear issue id` fallback `issue_for_repo` also has, since a pre-PR branch
+--- is exactly the case where there is nothing useful to show before you've
+--- asked for anything. `context()` still covers that path on demand.
+---
+--- RULE EXCEPTION: async form of vim.system, as `M.discover` uses elsewhere in
+--- this module. This runs 200ms after VimEnter, and a cold `gh pr view` is
+--- 300ms-2s — `issue_for_repo`'s sync `:wait()` is fine from a keymap, but
+--- would stall the UI right after startup.
+local function prime_from_buffer()
+  if current or vim.fn.executable 'gh' == 0 then
+    return
+  end
+
+  local r = require('custom.repo').for_buf(0)
+  if not r or not r.owner then
+    return
+  end
+
+  vim.system(
+    { 'gh', 'pr', 'view', '--repo', ('%s/%s'):format(r.owner, r.name), '--json', 'number,title,baseRefName,url' },
+    { text = true, cwd = r.root },
+    vim.schedule_wrap(function(result)
+      if result.code ~= 0 then
+        return
+      end
+
+      local ok, pr = pcall(vim.json.decode, result.stdout or '')
+      if not ok or not pr or not pr.title then
+        return
+      end
+
+      local issue = M.parse_identifier(pr.title)
+      if issue then
+        M.set_issue(issue)
+      end
+    end)
+  )
+end
+
+--- Register the commands and the startup priming.
 function M.setup()
   vim.api.nvim_create_user_command('WorkContext', function()
     M.show()
@@ -381,22 +465,8 @@ function M.setup()
     group = group,
     callback = function()
       vim.defer_fn(function()
-        pcall(M.context)
+        pcall(prime_from_buffer)
       end, 200)
-    end,
-  })
-
-  -- gitsigns already watches `.git/HEAD`, so this fires on checkout without any
-  -- polling of our own. Both handlers compare a cached string first and do
-  -- nothing when the branch is unchanged.
-  vim.api.nvim_create_autocmd({ 'User', 'FocusGained' }, {
-    group = group,
-    pattern = '*',
-    callback = function(ev)
-      if ev.event == 'User' and ev.match ~= 'GitSignsUpdate' then
-        return
-      end
-      require('custom.repo').invalidate()
     end,
   })
 end

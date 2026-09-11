@@ -38,18 +38,27 @@ vim.wait(5000, function()
 end)
 T.eq(work.peek().issue, 'ENG-1934', 'switched back')
 
--- peek() and statusline() must never spawn a process.
+-- peek() and statusline() must never spawn a process — including with a story
+-- set and the repo cache explicitly cold, which is the exact combination that
+-- would trigger a subprocess if either function reached for `active()` (repo
+-- lookup) or its base-branch backfill (`gh pr view`). The cache is invalidated
+-- and the counter installed together, with no uncounted call in between that
+-- could quietly re-warm the cache and hide a regression.
+require('custom.repo').invalidate()
+
 local count = 0
 local real = vim.system
 vim.system = function(...)
   count = count + 1
   return real(...)
 end
+
+T.eq(work.statusline(), 'ENG-1934 · 4 PRs', 'statusline falls back to PR-count form on a cold repo cache')
 for _ = 1, 50 do
   work.peek()
   work.statusline()
 end
 vim.system = real
-T.eq(count, 0, 'peek/statusline spawn zero processes')
+T.eq(count, 0, 'peek/statusline spawn zero processes, even with a cold repo cache')
 
 T.done()
