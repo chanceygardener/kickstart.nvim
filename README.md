@@ -163,6 +163,45 @@ the integration detects the CLI at runtime.
 To work on the integration without a Linear account, see `test/README.md`, which
 documents stub `linear` and `gh` binaries that reproduce the real output shapes.
 
+### show-me: agents point at code
+
+Terminal agents (Claude Code, Codex, Cursor) can show code in this Neovim while
+they explain it. An agent builds a *deck* of numbered views and you open them as
+you read. Each view uses one of four layouts (`single`, `cols2`, `cols3`,
+`main-stack`), and each pane is a file with a highlighted range. Nothing ever
+pops up uninvited; you get a notification.
+
+**Install the skill** once per machine. This links it into `~/.claude/skills`,
+`~/.codex/skills` and `~/.cursor/skills`, and puts the CLI at
+`~/.local/bin/show-me`:
+
+```sh
+./skills/show-me-nvim/install.sh
+```
+
+**How agents find this Neovim:** on startup it listens on
+`/tmp/show-me-<uid>/<hash of cwd>.sock`. The CLI walks up from the agent's main
+checkout (worktrees map to their main checkout) and uses the first socket that
+answers, so an agent anywhere under `~/repos` reaches a Neovim started in
+`~/repos`. `show-me status` shows what it found, and `SHOW_ME_SOCKET` overrides
+it.
+
+| Keys | Action |
+|---|---|
+| `Space v1`…`Space v9` | Open view N of the current deck |
+| `]v` / `[v` | Next / previous view (in the show-me tab) |
+| `Space vd` | Pick a recent deck |
+| `Space vq` | Close the show-me tab |
+
+**Sandboxed agents.** `show-me` connects to a unix socket, which agent sandboxes
+may block. Allow it explicitly:
+
+- Claude Code: add `"Bash(show-me:*)"` to `permissions.allow`. If sandboxing is
+  on, also list it in `sandbox.excludedCommands`.
+- Codex: approve `show-me` when prompted, or run with a sandbox mode that allows
+  local sockets.
+- Cursor: add `show-me` to the terminal command allowlist.
+
 ### Layout
 
 ```
@@ -175,6 +214,8 @@ lua/custom/work.lua         story context: a ticket plus all open PRs implementi
 lua/custom/review.lua       review-base resolution shared by the diff entry points
 lua/custom/linear.lua       Linear issue view and search, over the `linear` CLI
 lua/custom/fuzzy_edit.lua   the `:E` command
+lua/custom/show_me/         show-me: agent-built views, the socket agents reach it by
+skills/show-me-nvim/        the show-me agent skill: SKILL.md, the CLI, install.sh
 gh-dash/config.yml          gh-dash config, symlinked to ~/.config/gh-dash/
 test/stub/                  fake `linear` and `gh` for offline testing
 CHEATSHEET.md               keymap reference

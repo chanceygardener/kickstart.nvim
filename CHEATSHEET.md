@@ -768,6 +768,18 @@ Run `:Mason` on first launch and wait for all tools to install before opening la
 | `:lsp restart`       | Restart LSP server (replaces removed `:LspRestart`) |
 | `:lsp log`           | Open LSP log (replaces removed `:LspLog`) |
 
+## Agent Views (show-me)
+
+Views a terminal agent prepared with the `show-me` skill. See the README.
+
+| Keybinding / Command | Action |
+|----------------------|--------|
+| `<leader>v1`…`<leader>v9` | Open view N of the current deck |
+| `]v` / `[v`          | Next / previous view (in the show-me tab) |
+| `<leader>vd`         | Pick a recent deck |
+| `<leader>vq`         | Close the show-me tab |
+| `:ShowMe [n]`        | Open view n, or pick a deck |
+
 ## Quick Tips
 
 - The leader key is `Space`
