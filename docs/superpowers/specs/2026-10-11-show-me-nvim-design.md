@@ -109,8 +109,8 @@ integer epoch milliseconds.
 ```lua
 ---@class ShowMePane
 ---@field path string      Absolute, resolved path
----@field start? integer   1-based first line
----@field end_? integer    1-based last line, inclusive (`end` in JSON)
+---@field first? integer   1-based first highlighted line
+---@field last? integer    1-based last highlighted line, inclusive
 
 ---@class ShowMeView
 ---@field layout 'single'|'cols2'|'cols3'|'main-stack'
@@ -177,7 +177,7 @@ Then, in prose: *"The token is minted in `token.py` (view 1, top-right pane)…"
    `show-me: How a login request is authenticated · 2 views · <leader>v1`.
 6. **User** presses `<leader>v1`: `render.lua` finds or creates the `show-me` tab,
    closes its windows, builds the layout, and loads each buffer. Then it sets the
-   cursor to `start`, puts the range at the top with `zt`, applies a highlight
+   cursor to `first`, puts the range at the top with `zt`, applies a highlight
    extmark (`ShowMeRange`, linked to `Visual` by default), and sets the winbar to
    `2/3 · Login path · auth.py:40-88`.
 
@@ -229,7 +229,7 @@ Each of these is returned to the agent as `error: …`, exit 1:
 - Unknown subcommand, or unknown layout. The message lists the four valid layouts.
 - Pane count doesn't fit the layout, e.g. `cols2 takes 2 panes, got 3`.
 - The file doesn't exist or isn't readable.
-- A range is malformed, has `start > end`, or goes past EOF. The message gives the
+- A range is malformed, has `first > last`, or goes past EOF. The message gives the
   file's line count.
 - The deck id is unknown, or the deck is already `done` and a `view` is sent to it.
 - More than 9 views in a deck, since the keymaps only reach `<leader>v9`.
