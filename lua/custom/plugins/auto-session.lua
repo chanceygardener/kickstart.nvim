@@ -27,6 +27,14 @@ return {
     -- 'checkhealth' is the upstream default, kept here since this replaces it.
     close_filetypes_on_save = { 'checkhealth', 'neo-tree' },
 
+    -- The show-me tab is transient and its `t:show_me` marker isn't saved, so a
+    -- restored copy would be an orphan tab duplicated by the next `<leader>v1`.
+    pre_save_cmds = {
+      function()
+        require('custom.show_me.render').close()
+      end,
+    },
+
     -- auto-session ships backends for telescope/fzf-lua/snacks and picks
     -- whichever is present; here that resolves to snacks.picker. Drives
     -- `:AutoSession search` and `<leader>pf`.

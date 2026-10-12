@@ -180,10 +180,10 @@ pops up uninvited; you get a notification.
 ```
 
 **How agents find this Neovim:** on startup it listens on
-`/tmp/show-me-<uid>/<hash of cwd>.sock`. The CLI walks up from the agent's main
-checkout (worktrees map to their main checkout) and uses the first socket that
-answers, so an agent anywhere under `~/repos` reaches a Neovim started in
-`~/repos`. `show-me status` shows what it found, and `SHOW_ME_SOCKET` overrides
+`/tmp/show-me-<uid>/<hash of cwd>.sock`. The CLI walks up from the agent's own
+directory, then from its repo's main checkout (which differs inside a worktree),
+and uses the first socket that answers within 2s, so an agent anywhere under
+`~/repos` reaches a Neovim started in `~/repos`. `show-me status` shows what it found, and `SHOW_ME_SOCKET` overrides
 it.
 
 | Keys | Action |

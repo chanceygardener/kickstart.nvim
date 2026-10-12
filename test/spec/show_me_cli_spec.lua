@@ -33,6 +33,20 @@ local candidates = vim.split(vim.trim(run('socket').stdout), '\n')
 T.eq(candidates[1], socket.path(deeper), 'CLI and Lua derive the same socket path')
 T.ok(vim.tbl_contains(candidates, socket.path(scope)), 'CLI walks up to ancestor scopes')
 
+-- A Neovim opened in a linked worktree must be reachable from that worktree,
+-- with the main checkout still a candidate behind it.
+local main, feat = root .. '/main', root .. '/feat'
+vim.fn.mkdir(main, 'p')
+local function git(...)
+  return vim.system({ 'git', '-C', main, ... }, { text = true }):wait()
+end
+git('init', '-q')
+git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'init')
+git('worktree', 'add', '-q', feat)
+local wt = vim.split(vim.trim(vim.system({ CLI, 'socket' }, { cwd = feat, text = true }):wait().stdout), '\n')
+T.eq(wt[1], socket.path(feat), 'worktree: its own directory is the nearest candidate')
+T.ok(vim.tbl_contains(wt, socket.path(main)), 'worktree: main checkout is still a candidate')
+
 expect(run 'status', 3, socket.path(scope), 'no Neovim yet')
 expect(run 'view', 2, 'usage', 'missing arguments')
 
@@ -77,6 +91,21 @@ local direct = vim.system({ CLI, 'status' }, { cwd = '/', text = true, env = { S
 T.eq(direct.code, 0, 'SHOW_ME_SOCKET reaches the child from anywhere')
 local bogus = vim.system({ CLI, 'status' }, { cwd = '/', text = true, env = { SHOW_ME_SOCKET = root .. '/nope.sock' } }):wait()
 T.eq(bogus.code, 3, 'dead SHOW_ME_SOCKET: exit 3')
+
+-- A suspended Neovim (Ctrl-Z) still accepts connections but never answers;
+-- the CLI must give up rather than hang the agent.
+local frozen = root .. '/frozen'
+vim.fn.mkdir(frozen, 'p')
+local stopped = vim.system { 'nvim', '--headless', '--clean', '--listen', socket.path(frozen) }
+vim.wait(5000, function()
+  return vim.uv.fs_stat(socket.path(frozen)) ~= nil
+end, 50)
+vim.uv.kill(stopped.pid, 'sigstop')
+local started = vim.uv.hrtime()
+local hung = vim.system({ CLI, 'status' }, { cwd = frozen, text = true }):wait(20000) or { code = 'timed out' }
+T.eq(hung.code, 3, 'suspended Neovim: exit 3 instead of hanging')
+T.ok((vim.uv.hrtime() - started) / 1e9 < 10, 'suspended Neovim: gives up within the deadline')
+stopped:kill(9)
 
 child:kill(9)
 T.done()

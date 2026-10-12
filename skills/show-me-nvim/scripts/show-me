@@ -40,30 +40,53 @@ sha16() {
 
 socket_dir() { printf '/tmp/show-me-%s' "$(id -u)"; }
 
-# Where the upward search starts: the main checkout when inside a git repo, so
-# linked worktrees resolve to it; otherwise the current directory.
-start_dir() {
+# The main checkout of the git repo we're in; for a linked worktree that's a
+# different directory from the worktree itself.
+main_checkout() {
   local common
-  if common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null); then
-    physical "$common/.."
-  else
-    physical .
-  fi
+  common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || return 1
+  physical "$common/.."
 }
 
-# Candidate socket paths, nearest scope first.
-candidates() {
-  local dir sockets
-  dir=$(start_dir) || dir=$(physical .)
-  sockets=$(socket_dir)
+# `$1` and each of its parents, nearest first, ending at /.
+ancestors() {
+  local dir=$1
   while :; do
-    printf '%s/%s.sock\n' "$sockets" "$(sha16 "$dir")"
+    printf '%s\n' "$dir"
     [ "$dir" = / ] && break
     dir=$(dirname "$dir")
   done
 }
 
-alive() { nvim --server "$1" --remote-expr 1 >/dev/null 2>&1; }
+# Candidate socket paths, nearest scope first: this directory and its parents,
+# then the main checkout and its parents, so a Neovim opened in a worktree and
+# one opened on the main checkout are both reachable from the worktree.
+candidates() {
+  local here main dir sockets nl='
+'
+  local seen=$nl
+  here=$(physical .)
+  main=$(main_checkout) || main=""
+  sockets=$(socket_dir)
+  while IFS= read -r dir; do
+    case $seen in *"$nl$dir$nl"*) continue ;; esac
+    seen="$seen$dir$nl"
+    printf '%s/%s.sock\n' "$sockets" "$(sha16 "$dir")"
+  done < <(
+    ancestors "$here"
+    [ -n "$main" ] && ancestors "$main"
+  )
+}
+
+# Run nvim with a deadline. A suspended (Ctrl-Z) Neovim still accepts the
+# connection but never answers. macOS has no timeout(1); perl ships everywhere.
+nvim_within() {
+  local seconds=$1
+  shift
+  perl -e 'alarm shift; exec @ARGV' "$seconds" nvim "$@"
+}
+
+alive() { nvim_within 2 --server "$1" --remote-expr 1 >/dev/null 2>&1; }
 
 resolve_socket() {
   if [ -n "${SHOW_ME_SOCKET:-}" ]; then
@@ -115,8 +138,8 @@ vim_list() {
 rpc() {
   local sock out
   sock=$(resolve_socket) || exit $?
-  out=$(nvim --server "$sock" --remote-expr "luaeval(\"require('custom.show_me').rpc(_A)\", $(vim_list "$@"))" 2>&1) ||
-    die "Neovim at $sock could not run show-me (is this config loaded?): $out" 3
+  out=$(nvim_within 10 --server "$sock" --remote-expr "luaeval(\"require('custom.show_me').rpc(_A)\", $(vim_list "$@"))" 2>&1) ||
+    die "Neovim at $sock did not answer in 10s or could not run show-me (suspended? config not loaded?): $out" 3
   case $out in
     ok:*) printf '%s\n' "${out#ok:}" ;;
     error:*) die "${out#error:}" 1 ;;

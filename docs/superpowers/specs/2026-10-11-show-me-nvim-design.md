@@ -200,11 +200,13 @@ exists at the path, it probes it. A live socket means another Neovim owns the sc
 this instance logs at DEBUG and doesn't listen. A dead socket is deleted, and then
 `serverstart(path)` runs.
 
-**CLI side:** the start point is the agent's **main checkout root**, i.e. the parent of
-`realpath(git rev-parse --git-common-dir)`. That maps any linked worktree back to its
-main checkout. Outside a repo, the start point is `realpath(cwd)`. The CLI then walks
-from the start point up to `/`. For each ancestor it computes the path, and the first
-socket that answers `--remote-expr 1` wins. Dead sockets are skipped.
+**CLI side:** the CLI tries scopes nearest first. It walks from `realpath(cwd)`
+up to `/`, then from the repo's **main checkout root** (the parent of
+`realpath(git rev-parse --git-common-dir)`) up to `/`, skipping any directory it
+has already tried. Inside a linked worktree, that second walk reaches the main
+checkout. For each scope it computes the path, and the first socket that answers
+`--remote-expr 1` within 2s wins. Dead or suspended sockets are skipped, and the
+RPC itself has a 10s deadline, so a Ctrl-Z'd Neovim can't hang the agent.
 
 So an agent in `~/repos/foo` or in any worktree of `foo` reaches the Neovim in
 `~/repos`. A Neovim opened directly inside `~/repos/foo` is nearer, so it takes
