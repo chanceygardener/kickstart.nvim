@@ -196,21 +196,6 @@ vim.keymap.set('n', '<leader>dg', function() require('custom.review').pr_inbox()
 require('custom.work').setup()
 require('custom.linear').setup()
 
--- show-me: terminal agents (Claude Code, Codex, Cursor) show code here through
--- the `show-me` CLI in skills/show-me-nvim. setup() claims the socket they find
--- this instance by; views only ever open when asked for, with the keys below.
-require('custom.show_me').setup()
-
--- stylua: ignore start
-for n = 1, 9 do
-  vim.keymap.set('n', '<leader>v' .. n, function() require('custom.show_me').open(n) end, { desc = ('Show-me: [v]iew %d'):format(n) })
-end
-vim.keymap.set('n', ']v', function() require('custom.show_me.render').step(1) end, { desc = 'Show-me: next view' })
-vim.keymap.set('n', '[v', function() require('custom.show_me.render').step(-1) end, { desc = 'Show-me: previous view' })
-vim.keymap.set('n', '<leader>vd', function() require('custom.show_me').pick() end, { desc = 'Show-me: pick a [d]eck' })
-vim.keymap.set('n', '<leader>vq', function() require('custom.show_me.render').close() end, { desc = 'Show-me: [q]uit the view tab' })
--- stylua: ignore end
-
 -- stylua: ignore start
 vim.keymap.set('n', '<leader>lv', function() require('custom.linear').prompt_view() end, { desc = '[L]inear: [v]iew an issue' })
 vim.keymap.set('n', '<leader>ls', function() require('custom.linear').search() end, { desc = '[L]inear: [s]earch all teams' })

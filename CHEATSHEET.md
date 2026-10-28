@@ -770,7 +770,7 @@ Run `:Mason` on first launch and wait for all tools to install before opening la
 
 ## Agent Views (show-me)
 
-Views a terminal agent prepared with the `show-me` skill. See the README.
+Views a terminal agent prepared with the show-me plugin. `:checkhealth show_me` if an agent can't reach Neovim.
 
 | Keybinding / Command | Action |
 |----------------------|--------|
